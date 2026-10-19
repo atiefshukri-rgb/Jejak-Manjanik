@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<!--
+  © 2026 Muhammad Atiff. Hak Cipta Terpelihara. Dihasilkan khusus untuk keperluan kursus SJHK1164 IPG.
+  Dilarang menyalin, mengubah suai, mengedar semula atau menggunakan semula tanpa kebenaran bertulis daripada pemilik.
+-->
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="author" content="Muhammad Atiff">
+    <meta name="copyright" content="© 2026 Muhammad Atiff. Hak Cipta Terpelihara. Dihasilkan khusus untuk keperluan kursus SJHK1164 IPG.">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jejak Manjaniq: Misi Taif - Simulasi Pembelajaran AR & Gestur (Versi Dipertingkat)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #05070a; color: #f3f4f6; overflow: hidden; user-select: none; }
+        .font-cinzel { font-family: 'Cinzel', serif; }
+        canvas#webglCanvas { display: block; width: 100vw; height: 100vh; touch-action: none; }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(217, 119, 6, 0.35);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        #handPointer {
+            position: absolute; width: 34px; height: 34px; border-radius: 50%;
+            border: 3px solid #f59e0b; background: rgba(245, 158, 11, 0.3);
+            pointer-events: none; transform: translate(-50%, -50%); z-index: 40;
+            box-shadow: 0 0 18px rgba(245,158,11,.6);
+            transition: width 0.08s, height 0.08s, background-color 0.08s, border-color 0.08s;
+        }
+
+        @keyframes pulse-ring { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.1); opacity: 0.4; } 100% { transform: scale(0.95); opacity: 0.8; } }
+        .pulse-gesture { animation: pulse-ring 2s infinite ease-in-out; }
+
+        @keyframes glowPulse { 0%,100% { box-shadow: 0 0 0 rgba(245,158,11,0); } 50% { box-shadow: 0 0 22px rgba(245,158,11,.75); } }
+        .glow-pulse { animation: glowPulse 1.3s infinite ease-in-out; }
+
+        .pop {
+            position: absolute; z-index: 45; pointer-events: none; font-weight: 800;
+            text-shadow: 0 2px 10px #000, 0 0 14px rgba(0,0,0,.8);
+            transform: translate(-50%, -50%);
+            animation: floatUp 1.5s ease-out forwards; font-family: 'Cinzel', serif; white-space: nowrap;
+        }
+        @keyframes floatUp {
+            0% { opacity: 0; transform: translate(-50%, -30%) scale(.6); }
+            15% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); }
+            100% { opacity: 0; transform: translate(-50%, -200%) scale(1); }
+        }
+
+        #bannerToast { transition: opacity .5s, transform .5s; opacity: 0; transform: translate(-50%, -20px); }
+        #bannerToast.show { opacity: 1; transform: translate(-50%, 0); }
+
+        #volleyBanner { animation: volleyFlash .45s infinite alternate; }
+        @keyframes volleyFlash { from { background: rgba(127,29,29,.85); } to { background: rgba(220,38,38,.9); } }
+
+        #shieldOverlay {
+            position: fixed; inset: 0; z-index: 30; pointer-events: none; opacity: 0; transition: opacity .15s;
+            background: radial-gradient(ellipse at 50% 100%, rgba(120,70,20,.85) 0%, rgba(120,70,20,.55) 30%, rgba(30,20,10,0) 62%);
+            box-shadow: inset 0 0 90px 20px rgba(245,158,11,.55);
+        }
+        #shieldOverlay.on { opacity: 1; }
+        #hitFlash { position: fixed; inset: 0; z-index: 31; pointer-events: none; background: radial-gradient(circle, rgba(220,38,38,0) 30%, rgba(220,38,38,.75) 100%); opacity: 0; transition: opacity .5s; }
+
+
+        .game-ui { transition: opacity .8s ease; }
+        body.home .game-ui { opacity: 0; pointer-events: none !important; }
+        body.home .game-ui * { pointer-events: none !important; }
+        #homeScreen { transition: opacity .9s ease, visibility .9s; }
+        #homeScreen.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+        #homeScreen.hide .home-content { transform: scale(1.06); }
+        .home-content { transition: transform 1.2s ease; }
+        .title-glow { text-shadow: 0 0 34px rgba(251,191,36,.55), 0 4px 0 rgba(120,53,15,.85); }
+        @keyframes titleIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+        .fade-in-1 { animation: titleIn 1s .1s both ease-out; }
+        .fade-in-2 { animation: titleIn 1s .45s both ease-out; }
+        .fade-in-3 { animation: titleIn 1s .8s both ease-out; }
+        .fade-in-4 { animation: titleIn 1s 1.15s both ease-out; }
+        .home-btn { background: linear-gradient(90deg, #d97706, #facc15); color: #1c1105; font-weight: 800; letter-spacing: .12em; border-radius: 9999px; padding: .95rem 2.6rem; font-size: .95rem; box-shadow: 0 8px 30px rgba(245,158,11,.4); transition: transform .15s, box-shadow .15s; }
+        .home-btn:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 12px 38px rgba(250,204,21,.55); }
+        .home-sub { background: rgba(15,23,42,.7); border: 1px solid rgba(217,119,6,.45); color: #fcd34d; font-weight: 700; font-size: .75rem; border-radius: 9999px; padding: .6rem 1.2rem; transition: background .15s; backdrop-filter: blur(6px); }
+        .home-sub:hover { background: rgba(120,53,15,.6); }
+        .ornament { height: 1px; width: 120px; background: linear-gradient(90deg, transparent, #f59e0b, transparent); }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        ::-webkit-scrollbar-thumb { background: #d97706; border-radius: 4px; }
+    </style>
+</head>
+<body class="home relative w-screen h-screen overflow-hidden">
+
+    <canvas id="webglCanvas" class="absolute inset-0 z-0"></canvas>
+
+    <video id="webcamVideo" class="absolute bottom-4 right-4 w-40 h-28 object-cover rounded-xl border-2 border-amber-500/50 shadow-2xl z-25 hidden transform -scale-x-100" autoplay playsinline muted></video>
+    <canvas id="handCanvas" width="160" height="112" class="absolute bottom-4 right-4 w-40 h-28 rounded-xl z-30 hidden transform -scale-x-100 pointer-events-none"></canvas>
+    <div id="handPointer" class="hidden"></div>
+
+    <div id="shieldOverlay"><div class="absolute bottom-24 left-1/2 -translate-x-1/2 text-7xl drop-shadow-2xl">🛡️</div></div>
+    <div id="hitFlash"></div>
+
+    <!-- Banner announcements -->
+    <div id="bannerToast" class="absolute top-28 left-1/2 z-30 pointer-events-none glass-panel px-6 py-3 rounded-2xl text-center">
+        <div id="bannerText" class="font-cinzel text-lg md:text-2xl font-extrabold text-amber-300 tracking-wide"></div>
+    </div>
+
+    <!-- Volley warning -->
+    <div id="volleyBanner" class="hidden absolute top-40 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-2xl border border-red-400/60 text-center pointer-events-none">
+        <div class="font-cinzel text-sm md:text-base font-extrabold text-red-100">⚠️ HUJAN PANAH DATANG!</div>
+        <div class="text-[11px] text-red-100 font-semibold">Angkat Dabbabah: tekan SPACE / butang perisai / genggam tangan</div>
+    </div>
+
+    <!-- TOP HUD -->
+    <header class="game-ui absolute top-0 left-0 right-0 z-20 p-3 pointer-events-none flex items-center justify-between flex-wrap gap-2">
+        <div class="flex items-center gap-3 pointer-events-auto">
+            <div class="glass-panel p-2.5 rounded-2xl flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-xl">🏰</div>
+                <div>
+                    <h1 class="font-cinzel text-sm md:text-base font-extrabold text-amber-300 tracking-wider">Jejak Manjaniq: Misi Taif</h1>
+                    <p class="text-[11px] text-gray-300 font-medium">SJHK1164: Sasaran Mengikut Gestur Tangan</p>
+                </div>
+            </div>
+            <div class="hidden sm:flex glass-panel px-3.5 py-2 rounded-xl text-xs items-center gap-2">
+                <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="controlModeLabel" class="text-gray-200 font-semibold">Mod: Sentuh / Tetikus</span>
+            </div>
+        </div>
+
+        <div class="pointer-events-auto flex items-center gap-2 flex-wrap">
+            <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs">
+                <span class="text-gray-400 font-medium">Tahap:</span>
+                <span id="hudLevel" class="font-black text-amber-400 text-sm">1/3</span>
+            </div>
+            <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs">
+                <span class="text-gray-400 font-medium">Skor:</span>
+                <span id="hudScore" class="font-black text-emerald-400 text-sm">0</span>
+            </div>
+            <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs">
+                <span class="text-gray-400 font-medium">Masa:</span>
+                <span id="hudTimer" class="font-black text-blue-400 text-sm">120s</span>
+            </div>
+            <div class="glass-panel px-3 py-1.5 rounded-xl text-xs">
+                <span id="hudLives" class="text-red-400 tracking-wider text-sm">❤️❤️❤️</span>
+            </div>
+            <button onclick="toggleMute()" id="muteBtn" class="glass-panel px-3 py-2 rounded-xl text-xs font-bold hover:bg-slate-700 transition">🔊</button>
+            <button onclick="toggleCameraMode()" id="camToggleBtn" class="bg-amber-600 hover:bg-amber-500 text-gray-950 px-3.5 py-2 rounded-xl text-xs font-bold shadow-lg transition flex items-center gap-1.5">
+                📷 <span id="camBtnText">Kamera Gestur</span>
+            </button>
+        </div>
+    </header>
+
+    <div id="gestureBadge" class="game-ui absolute top-20 left-3 z-20 glass-panel px-4 py-2 rounded-xl text-xs font-semibold text-amber-300 flex items-center gap-2 max-w-xs">
+        <span class="text-base">✋</span> <span id="gestureText">Sedia: Jawab soalan untuk mendapatkan amunisi!</span>
+    </div>
+
+    <!-- BOTTOM CONTROL CENTER -->
+    <div class="game-ui absolute bottom-3 left-1/2 -translate-x-1/2 z-20 w-full max-w-xl px-3 pointer-events-auto">
+        <div class="glass-panel p-3.5 rounded-2xl text-center space-y-2.5 shadow-2xl border-amber-500/40">
+            <div class="space-y-1">
+                <div class="flex justify-between text-xs font-bold">
+                    <span id="fortressStatusLabel" class="text-amber-300 uppercase tracking-wider">Tahap 1</span>
+                    <span id="fortressHpText" class="text-red-400">HP: 100%</span>
+                </div>
+                <div class="w-full bg-gray-950 h-2.5 rounded-full overflow-hidden p-0.5 border border-gray-800">
+                    <div id="fortressHpBar" class="bg-gradient-to-r from-red-600 via-amber-500 to-emerald-500 h-full w-full rounded-full transition-all duration-300"></div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between text-[11px] font-semibold">
+                <span>Amunisi: <span id="hudAmmo" class="tracking-widest">—</span></span>
+                <span id="hudCombo" class="text-amber-300"></span>
+            </div>
+
+            <p id="instructionText" class="text-xs text-amber-200 font-medium"></p>
+
+            <div class="flex items-center justify-center gap-2">
+                <button id="quizTriggerBtn" onclick="openQuizModal()" class="w-full bg-gradient-to-r from-amber-600 to-yellow-500 text-gray-950 font-extrabold py-2.5 px-3 rounded-xl text-xs shadow-lg transition">📜 Jawab Soalan Sejarah</button>
+                <button id="launchBtn" onclick="manualLaunch()" disabled class="w-full bg-gray-800 text-gray-500 font-extrabold py-2.5 px-3 rounded-xl text-xs shadow cursor-not-allowed transition">🎯 Lancar</button>
+                <button id="shieldBtn" onclick="raiseShield()" class="shrink-0 bg-sky-700 hover:bg-sky-600 text-white font-extrabold py-2.5 px-3 rounded-xl text-xs shadow transition">🛡️ Dabbabah</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HOME SCREEN -->
+    <div id="homeScreen" class="fixed inset-0 z-50 flex flex-col items-center justify-between text-center p-6"
+         style="background: radial-gradient(ellipse at 50% 42%, rgba(5,7,10,0) 0%, rgba(5,7,10,.35) 55%, rgba(5,7,10,.9) 100%);">
+        <div class="pt-4 md:pt-8 fade-in-1">
+            <div class="text-[10px] md:text-[11px] tracking-[.35em] text-amber-300/85 font-semibold uppercase">SJHK1164 &middot; Simulasi Pembelajaran Sejarah</div>
+        </div>
+
+        <div class="home-content space-y-4 max-w-2xl">
+            <div class="fade-in-1 text-5xl md:text-6xl">🏰</div>
+            <div class="fade-in-2 space-y-2">
+                <h1 class="font-cinzel title-glow text-4xl md:text-7xl font-black text-amber-300 leading-tight">Jejak Manjaniq</h1>
+                <div class="flex items-center justify-center gap-3"><span class="ornament"></span><h2 class="font-cinzel text-lg md:text-3xl font-bold text-amber-100 tracking-[.3em]">MISI TAIF</h2><span class="ornament"></span></div>
+            </div>
+            <p class="fade-in-3 text-xs md:text-sm text-gray-200 leading-relaxed max-w-md mx-auto">
+                Pengepungan Taif, 8 H / 630 M. Kendalikan Manjaniq, runtuhkan tiga lapisan pertahanan benteng, dan nilai strategi dengan pemikiran kritis.
+            </p>
+            <div class="fade-in-4 flex flex-col items-center gap-3 pt-3">
+                <button onclick="startGame()" class="home-btn glow-pulse">⚔️ MULA MISI</button>
+                <div class="flex flex-wrap items-center justify-center gap-2.5">
+                    <button onclick="showInfo('how')" class="home-sub">📖 Cara Bermain</button>
+                    <button onclick="showInfo('history')" class="home-sub">🏺 Latar Sejarah</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="pb-3 text-[10px] text-gray-400 space-y-1 fade-in-4">
+            <div>Tekan <b class="text-amber-300">Enter</b> untuk mula &middot; Tetikus / sentuh / kamera gestur</div>
+            <div>Butiran sejarah dipermudah untuk tujuan pembelajaran dan permainan.</div>
+            <div id="copyrightHome" class="text-amber-200/80 font-semibold pt-1">© 2026 Muhammad Atiff. Hak Cipta Terpelihara. Dihasilkan khusus untuk keperluan kursus SJHK1164 IPG.</div>
+        </div>
+    </div>
+
+    <!-- INFO PANEL (Cara Bermain / Latar Sejarah) -->
+    <div id="infoPanel" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-md hidden items-center justify-center p-4" onclick="if(event.target===this)closeInfo()">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-6 space-y-4 max-h-[90vh] overflow-y-auto border-amber-500/50">
+            <h3 id="infoTitle" class="font-cinzel text-lg font-bold text-amber-300"></h3>
+            <div id="infoBody" class="text-xs text-gray-200 leading-relaxed space-y-2"></div>
+            <button onclick="closeInfo()" class="w-full bg-amber-600 hover:bg-amber-500 text-gray-950 font-bold py-2.5 rounded-xl text-xs transition">Tutup</button>
+        </div>
+    </div>
+
+    <div id="copyrightGame" style="position:fixed;left:8px;bottom:4px;z-index:25;max-width:34vw;font-size:9px;line-height:1.25;color:rgba(255,255,255,.45);pointer-events:none;text-shadow:0 1px 3px #000">© 2026 Muhammad Atiff. Hak Cipta Terpelihara. Dihasilkan khusus untuk keperluan kursus SJHK1164 IPG.</div>
+
+    <!-- QUIZ MODAL -->
+    <div id="quizModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-6 shadow-2xl border-amber-500/50 space-y-4 max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">📜</span>
+                    <h3 class="font-cinzel text-base font-bold text-amber-300">Soalan Strategi Misi Taif</h3>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span id="quizLevelBadge" class="text-[10px] bg-emerald-500/15 text-emerald-200 border border-emerald-500/35 px-2 py-0.5 rounded-full font-bold">Tahap 1 · Mudah</span>
+                    <span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">SJHK1164</span>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <p id="quizQuestionText" class="text-xs md:text-sm text-gray-200 font-medium leading-relaxed"></p>
+                <div id="quizOptionsContainer" class="space-y-2"></div>
+                <div id="quizHistoricalNote" class="hidden p-3 rounded-xl bg-amber-950/40 border border-amber-600/30 text-[11px] text-amber-200 leading-relaxed"></div>
+            </div>
+            <div class="pt-2 flex items-center justify-between">
+                <span class="text-[10px] text-gray-500">Pintasan: 1 / 2 / 3 dan Enter</span>
+                <button id="quizConfirmBtn" onclick="confirmQuizAnswer()" disabled class="bg-gray-800 text-gray-500 px-5 py-2 rounded-xl text-xs font-bold cursor-not-allowed transition">Sahkan Jawapan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- END MODAL -->
+    <div id="endModal" class="fixed inset-0 z-50 bg-black/90 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl p-6 shadow-2xl text-center space-y-5 border-amber-500/60">
+            <div class="w-16 h-16 bg-amber-500/20 rounded-2xl flex items-center justify-center mx-auto border border-amber-400/40 text-3xl pulse-gesture" id="endIcon">🏆</div>
+            <div>
+                <h3 id="endTitle" class="font-cinzel text-xl font-extrabold text-amber-300">Misi Selesai!</h3>
+                <p id="endDesc" class="text-xs text-gray-300 mt-1 leading-relaxed"></p>
+            </div>
+            <div class="glass-card p-4 rounded-2xl border border-gray-800 space-y-2">
+                <div class="flex justify-between text-xs text-gray-400"><span>Jumlah Skor:</span><span id="endScore" class="font-bold text-emerald-400">0</span></div>
+                <div class="flex justify-between text-xs text-gray-400"><span>Tahap Dicapai:</span><span id="endLevel" class="font-bold text-amber-400">3/3</span></div>
+                <div class="flex justify-between text-xs text-gray-400"><span>Ketepatan Soalan:</span><span id="endQuiz" class="font-bold text-sky-300">-</span></div>
+                <div class="flex justify-between text-xs text-gray-400"><span>Serangan Titik Lemah:</span><span id="endWeak" class="font-bold text-amber-300">-</span></div>
+                <div class="flex justify-between text-xs text-gray-400"><span>Penilaian Kritis:</span><span id="endRating" class="font-bold text-blue-300">-</span></div>
+            </div>
+            <button onclick="resetGame()" class="w-full bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-gray-950 font-bold py-3 rounded-xl text-xs shadow-xl transition">Main Semula Misi</button>
+            <button onclick="goHome()" class="w-full bg-slate-800 hover:bg-slate-700 text-amber-200 font-bold py-2.5 rounded-xl text-xs transition">🏠 Menu Utama</button>
+            <p class="text-[9px] text-gray-500 leading-snug">© 2026 Muhammad Atiff. Hak Cipta Terpelihara. Dihasilkan khusus untuk keperluan kursus SJHK1164 IPG.</p>
+        </div>
+    </div>
+
+    <script>
+    'use strict';
+
+    /* ===================== HAK CIPTA & PERLINDUNGAN ===================== */
+    const COPY_TXT = '© 2026 Muhammad Atiff. Hak Cipta Terpelihara. Dihasilkan khusus untuk keperluan kursus SJHK1164 IPG.';
+    try {
+        console.log('%c' + COPY_TXT, 'color:#fbbf24;font:700 13px sans-serif;');
+        console.log('%cDilarang menyalin atau mengedar semula tanpa kebenaran pemilik.', 'color:#f87171;font:600 11px sans-serif;');
+    } catch (e) { }
+    // halang salin, seret, klik kanan dan pintasan lihat-sumber / alat pembangun (halangan ringan sahaja)
+    ['contextmenu', 'dragstart', 'copy', 'cut', 'selectstart'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
+    document.addEventListener('keydown', e => {
+        const k = (e.key || '').toLowerCase(), m = e.ctrlKey || e.metaKey;
+        if (e.key === 'F12' || (m && ['u', 's'].includes(k)) || (m && e.shiftKey && ['i', 'j', 'c'].includes(k)) || (e.metaKey && e.altKey && ['i', 'j', 'u'].includes(k))) e.preventDefault();
+    }, true);
+    // pastikan notis hak cipta sentiasa kelihatan; jika dibuang/disembunyikan, pulihkan semula
+    function ensureCopyright() {
+        let el = document.getElementById('copyrightGame');
+        let bad = !el || el.textContent.trim() !== COPY_TXT;
+        if (!bad) { const cs = getComputedStyle(el); bad = cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.3 || el.getBoundingClientRect().width < 20; }
+        if (bad) {
+            if (el) el.remove();
+            el = document.createElement('div'); el.id = 'copyrightGame'; el.textContent = COPY_TXT;
+            el.setAttribute('style', 'position:fixed!important;left:8px!important;bottom:4px!important;z-index:2147483000!important;max-width:34vw!important;font-size:9px!important;line-height:1.25!important;color:rgba(255,255,255,.55)!important;pointer-events:none!important;display:block!important;visibility:visible!important;opacity:1!important');
+            document.body.appendChild(el);
+        }
+    }
+    setInterval(ensureCopyright, 2500);
+
+    /* ===================== STATE ===================== */
+    const S = { score: 0, level: 1, lives: 3, timer: 120, hp: 100, ammo: 0, combo: 0, shots: 0, weakHits: 0,
+                quizAsked: 0, quizRight: 0, running: false, paused: true, home: true, collapsing: false, muted: false,
+                shield: 0, shieldCD: 0 };
+    const G = 9.8, FLIGHT = 1.0, AIM_Z = -8.95, ARROW_T = 1.1;
+    const RELEASE = new THREE.Vector3(0, 5.32, 4.2);
+    const REST_ANGLE = -0.55, THROW_ANGLE = Math.PI / 3;
+
+    const LEVELS = {
+        1: { name: 'Tembok Luar Taif',     W: 10,  H: 4.5, towers: [-5.6, 5.6], TH: 6.6, keep: null, gate: false, color: '#b97b4e' },
+        2: { name: 'Menara & Kubu Dalam',  W: 8,   H: 5.5, towers: [-4.6, 4.6], TH: 8.2, keep: { w: 3.4, h: 9.5 },  gate: false, color: '#a96a43' },
+        3: { name: 'Gerbang Utama Taif',   W: 6.6, H: 6.4, towers: [-3.9, 3.9], TH: 9.6, keep: { w: 4.4, h: 11.5 }, gate: true,  color: '#94603d' }
+    };
+
+    const quizBanks = {
+        1: [
+            { q: "Apakah manjaniq?", options: ["Alat besar untuk melontar batu", "Pedang panjang", "Perahu kecil"], correct: 0, note: "Manjaniq ialah alat lontar yang digunakan untuk melontarkan batu ke arah benteng." },
+            { q: "Apakah yang dilontarkan oleh manjaniq ke arah benteng Taif?", options: ["Anak panah", "Batu", "Air"], correct: 1, note: "Catatan sejarah menyebut batu dilontarkan ke arah benteng menggunakan manjaniq." },
+            { q: "Apakah sasaran utama manjaniq semasa pengepungan?", options: ["Dinding benteng", "Khemah sendiri", "Jalan ke Madinah"], correct: 0, note: "Manjaniq digunakan untuk menyerang dinding benteng yang melindungi kota." },
+            { q: "Pengepungan Taif berlaku selepas peristiwa yang mana?", options: ["Perang Badar", "Perang Hunain", "Perang Uhud"], correct: 1, note: "Pengepungan Taif berlaku selepas Perang Hunain." },
+            { q: "Apakah yang melindungi kota Taif?", options: ["Benteng yang kuat", "Pagar buluh yang rendah", "Kapal di sekeliling kota"], correct: 0, note: "Benteng Taif kuat dan sukar ditembusi." },
+            { q: "Pada tahun Hijrah ke berapakah pengepungan Taif berlaku?", options: ["Tahun ke-2 Hijrah", "Tahun ke-5 Hijrah", "Tahun ke-8 Hijrah"], correct: 2, note: "Pengepungan Taif berlaku pada tahun ke-8 Hijrah, selepas Perang Hunain." },
+            { q: "Apakah kegunaan dabbabah dalam pengepungan?", options: ["Melontar batu jauh ke udara", "Melindungi orang yang menghampiri dinding benteng", "Membawa bekalan melalui laut"], correct: 1, note: "Dabbabah ialah pelindung bergerak yang digunakan ketika menghampiri dinding benteng." },
+            { q: "Siapakah yang mempertahankan kota Taif ketika itu?", options: ["Kaum Thaqif", "Kaum Rom", "Kaum Aus"], correct: 0, note: "Taif merupakan kota kaum Thaqif." },
+            { q: "Adakah benteng Taif berjaya ditawan semasa pengepungan itu?", options: ["Ya, pada hari pertama", "Ya, dengan bantuan kapal", "Tidak, pengepungan akhirnya dihentikan"], correct: 2, note: "Pengepungan dihentikan dan benteng Taif tidak ditawan ketika itu." },
+            { q: "Apakah jenis alat manjaniq?", options: ["Alat untuk mengukur masa", "Alat lontar batu", "Alat untuk menyalakan lampu"], correct: 1, note: "Manjaniq ialah alat lontar batu yang digunakan ketika menyerang benteng." }
+        ],
+        2: [
+            { q: "Mengapakah manjaniq berguna ketika menyerang benteng Taif?", options: ["Batu boleh dilontar ke arah dinding dari suatu jarak", "Alat itu boleh membawa semua tentera terbang", "Alat itu boleh membuka pintu dengan kunci"], correct: 0, note: "Manjaniq membolehkan batu dilontarkan ke arah dinding benteng." },
+            { q: "Apakah perbezaan utama manjaniq dengan dabbabah?", options: ["Kedua-duanya ialah nama bagi pedang", "Manjaniq melontar batu, dabbabah melindungi orang yang menghampiri benteng", "Dabbabah melontar batu, manjaniq membawa bekalan"], correct: 1, note: "Kedua-dua alat mempunyai tugas berbeza: satu melontar batu dan satu lagi menjadi pelindung bergerak." },
+            { q: "Mengapakah dabbabah membantu ketika menghampiri dinding benteng?", options: ["Ia memberi perlindungan daripada serangan dari atas benteng", "Ia membuat dinding menjadi lebih rendah", "Ia menjadikan tentera tidak kelihatan selama-lamanya"], correct: 0, note: "Dabbabah digunakan sebagai perlindungan bergerak ketika orang menghampiri benteng." },
+            { q: "Apakah susunan peristiwa yang betul?", options: ["Pengepungan Taif, kemudian Hunain", "Hunain, kemudian pengepungan Taif", "Taif, kemudian Perang Badar"], correct: 1, note: "Pengepungan Taif berlaku selepas Perang Hunain." },
+            { q: "Apakah cabaran besar ketika cuba memasuki kota Taif?", options: ["Bentengnya kuat dan dipertahankan", "Kota itu berada di tengah laut", "Tiada siapa tahu jalan ke kota"], correct: 0, note: "Benteng Taif kuat dan para pembelanya mempertahankannya." },
+            { q: "Selain anak panah, apakah yang digunakan oleh para pembela dari atas benteng menurut catatan sejarah?", options: ["Besi yang dipanaskan", "Bola salji", "Air laut"], correct: 0, note: "Catatan sejarah menyebut anak panah dan besi panas digunakan oleh para pembela." },
+            { q: "Jika batu manjaniq mengenai sebahagian dinding, mengapakah tentera masih perlu berhati-hati?", options: ["Para pembela masih boleh menyerang dari benteng", "Semua pintu kota terus terbuka", "Batu itu akan membina semula dinding"], correct: 0, note: "Para pembela Taif masih melawan dari benteng, termasuk dengan anak panah." },
+            { q: "Apakah yang dapat kita fahami apabila manjaniq dan dabbabah digunakan bersama?", options: ["Setiap alat mempunyai tugas yang berbeza", "Kedua-duanya hanya digunakan untuk mengangkut air", "Satu alat menjadikan benteng tidak perlu dipertahankan"], correct: 0, note: "Manjaniq menyerang dinding, manakala dabbabah membantu melindungi orang yang menghampiri benteng." },
+            { q: "Mengapakah pengepungan Taif tidak mudah diselesaikan dengan cepat?", options: ["Benteng kuat dan pembelanya telah bersedia", "Manjaniq hanya boleh digunakan di laut", "Taif tiada dinding"], correct: 0, note: "Benteng Taif sukar ditembusi dan pembelanya telah bersedia untuk bertahan." },
+            { q: "Apakah yang berlaku selepas pengepungan Taif dihentikan?", options: ["Benteng Taif terus ditawan pada hari itu", "Tentera beredar tanpa menawan benteng", "Manjaniq dibawa ke Perang Badar"], correct: 1, note: "Pengepungan dihentikan tanpa menawan benteng Taif." }
+        ],
+        3: [
+            { q: "Tentera perlu menyerang dinding benteng yang tinggi dari luar. Alat manakah paling sesuai untuk melontar batu ke arahnya?", options: ["Manjaniq", "Dabbabah", "Perisai tangan"], correct: 0, note: "Manjaniq ialah alat lontar batu yang digunakan untuk menyerang benteng." },
+            { q: "Tentera perlu menghampiri dinding tetapi berdepan serangan dari atas. Alat manakah paling membantu melindungi mereka?", options: ["Manjaniq", "Dabbabah", "Peta kota"], correct: 1, note: "Dabbabah ialah pelindung bergerak untuk orang yang menghampiri dinding benteng." },
+            { q: "Manakah rumusan paling tepat tentang hasil pengepungan Taif?", options: ["Benteng ditawan sebaik sahaja manjaniq digunakan", "Manjaniq digunakan, tetapi benteng tidak ditawan dan pengepungan dihentikan", "Tiada alat digunakan sepanjang pengepungan"], correct: 1, note: "Manjaniq digunakan dalam pengepungan, tetapi benteng Taif tidak ditawan ketika itu." },
+            { q: "Jika dinding benteng rosak, apakah sebab para pembela masih boleh menghalang kemaraan?", options: ["Mereka masih boleh mempertahankan benteng dan menyerang dari atas", "Dinding yang rosak berubah menjadi sungai", "Manjaniq terus berhenti berfungsi selama-lamanya"], correct: 0, note: "Kerosakan pada sebahagian dinding tidak bermaksud seluruh benteng terus jatuh." },
+            { q: "Apakah yang boleh disimpulkan daripada penggunaan dua alat yang berlainan itu?", options: ["Serangan dan perlindungan memerlukan alat yang berlainan", "Semua alat perang mempunyai kegunaan yang sama", "Dabbabah digunakan untuk menggantikan benteng"], correct: 0, note: "Manjaniq membantu menyerang dinding; dabbabah membantu melindungi orang yang menghampirinya." },
+            { q: "Pilih urutan masa yang tepat berdasarkan kisah pengepungan Taif.", options: ["Hunain → pengepungan Taif → pengepungan dihentikan", "Pengepungan Taif → Uhud → Hunain", "Badar → Taif → Hunain"], correct: 0, note: "Pengepungan Taif berlaku selepas Hunain dan akhirnya dihentikan tanpa menawan benteng." },
+            { q: "Pernyataan manakah menerangkan fungsi manjaniq dengan betul?", options: ["Ia melontar batu; ia bukan senjata api moden", "Ia menembak peluru menggunakan serbuk bedil", "Ia digunakan untuk mengangkat orang ke atas benteng"], correct: 0, note: "Manjaniq ialah alat lontar batu, bukan senjata api moden." },
+            { q: "Apakah alasan paling munasabah untuk menggunakan manjaniq dari luar benteng?", options: ["Untuk melontar batu ke arah dinding tanpa perlu memanjatnya", "Untuk menjadikan semua pembela keluar dari kota", "Untuk mengangkut dabbabah ke laut"], correct: 0, note: "Manjaniq membolehkan batu dilontarkan ke dinding dari luar benteng." },
+            { q: "Jika pembela menggunakan anak panah terhadap orang yang menghampiri dinding, alat manakah melengkapkan serangan manjaniq?", options: ["Dabbabah, sebagai perlindungan bergerak", "Perahu, untuk melontar batu", "Pedang, sebagai alat lontar"], correct: 0, note: "Dabbabah membantu melindungi orang yang bergerak menghampiri benteng." },
+            { q: "Apakah pengajaran strategi yang paling sesuai daripada pengepungan yang lama terhadap benteng kuat?", options: ["Alat yang hebat sahaja tidak menjamin benteng dapat ditawan", "Manjaniq boleh menggantikan semua perancangan", "Benteng yang kuat tidak memerlukan pembela"], correct: 0, note: "Pengepungan Taif menunjukkan bahawa penggunaan alat lontar tidak semestinya membawa kepada penawanan benteng." }
+        ]
+    };
+
+    /* ===================== GLOBALS ===================== */
+    let scene, camera, renderer, clock, raycaster, aimPlane;
+    let glowTex, crackTex, scorchTex;
+    let fort = null;
+    let torchLights = [], projLight, flames = [], staticFlags = [];
+    let manj = {}, reticle, weakMarker, weak = { x: 0, y: 2 }, trajPoints, motes;
+    const aim = { x: 0, y: 2.5, tx: 0, ty: 2.5 };
+    let projectiles = [], arrows = [], debris = [], particles = [], defendersFalling = [];
+    let shakeAmt = 0;
+    let cameraActive = false, handsInstance = null, cameraUtils = null;
+    const hand = { pinching: false, fistFrames: 0 };
+    let pressed = false, camBlend = 0;
+
+    /* ===================== HELPERS ===================== */
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const $ = id => document.getElementById(id);
+
+    function makeGlowTex() {
+        const c = document.createElement('canvas'); c.width = c.height = 128;
+        const g = c.getContext('2d');
+        const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+        gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,0.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+        return new THREE.CanvasTexture(c);
+    }
+    function makeCrackTex() {
+        const c = document.createElement('canvas'); c.width = c.height = 256;
+        const g = c.getContext('2d');
+        g.strokeStyle = 'rgba(15,8,4,0.95)'; g.lineWidth = 4; g.lineCap = 'round';
+        for (let k = 0; k < 6; k++) {
+            let x = 128, y = 128, a = Math.random() * Math.PI * 2;
+            g.beginPath(); g.moveTo(x, y);
+            for (let j = 0; j < 7; j++) { a += (Math.random() - 0.5) * 1.2; x += Math.cos(a) * 18; y += Math.sin(a) * 18; g.lineTo(x, y); }
+            g.stroke();
+        }
+        return new THREE.CanvasTexture(c);
+    }
+    function makeScorchTex() {
+        const c = document.createElement('canvas'); c.width = c.height = 128;
+        const g = c.getContext('2d');
+        const gr = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+        gr.addColorStop(0, 'rgba(10,5,2,0.9)'); gr.addColorStop(0.6, 'rgba(20,10,5,0.55)'); gr.addColorStop(1, 'rgba(20,10,5,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+        return new THREE.CanvasTexture(c);
+    }
+    function brickTex(base, rx, ry) {
+        const c = document.createElement('canvas'); c.width = c.height = 256;
+        const g = c.getContext('2d');
+        g.fillStyle = '#3a2a20'; g.fillRect(0, 0, 256, 256);
+        const col = new THREE.Color(base), bw = 64, bh = 32;
+        for (let r = 0; r < 8; r++) {
+            const off = (r % 2) * bw / 2;
+            for (let x = -bw; x < 256 + bw; x += bw) {
+                const cc = col.clone(); cc.offsetHSL(0, 0, (Math.random() - 0.5) * 0.18);
+                g.fillStyle = '#' + cc.getHexString();
+                g.fillRect(x + off + 2, r * bh + 2, bw - 4, bh - 4);
+            }
+        }
+        for (let i = 0; i < 2500; i++) { g.fillStyle = `rgba(0,0,0,${Math.random() * 0.12})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2); }
+        const t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 4; t.encoding = THREE.sRGBEncoding;
+        return t;
+    }
+    function sandTex() {
+        const c = document.createElement('canvas'); c.width = c.height = 512;
+        const g = c.getContext('2d');
+        g.fillStyle = '#c9a26b'; g.fillRect(0, 0, 512, 512);
+        for (let i = 0; i < 9000; i++) {
+            const v = Math.floor(rand(150, 215));
+            g.fillStyle = `rgba(${v},${v - 30},${v - 80},${rand(0.05, 0.25)})`;
+            g.fillRect(Math.random() * 512, Math.random() * 512, rand(1, 3), rand(1, 3));
+        }
+        const t = new THREE.CanvasTexture(c);
+        t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(36, 36); t.anisotropy = 4; t.encoding = THREE.sRGBEncoding;
+        return t;
+    }
+
+    /* ===================== AUDIO ===================== */
+    let actx = null, master = null, noiseBuffer = null, musicSource = null, musicGain = null;
+    function A() {
+        if (!actx) {
+            actx = new (window.AudioContext || window.webkitAudioContext)();
+            master = actx.createGain(); master.gain.value = S.muted ? 0 : 0.6; master.connect(actx.destination);
+            noiseBuffer = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate);
+            const d = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        }
+        if (actx.state === 'suspended') actx.resume();
+        return actx;
+    }
+    function tone(type, f0, f1, dur, vol) {
+        const c = A(), t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+        o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+        g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
+    }
+    function noise(filterType, f0, f1, dur, vol) {
+        const c = A(), t = c.currentTime, s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+        s.buffer = noiseBuffer; f.type = filterType;
+        f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+        g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random()); s.stop(t + dur + 0.02);
+    }
+    // Procedural 24-second cinematic siege score, synthesized locally with no recordings.
+    function startMusic() {
+        const c = A();
+        if (musicSource) return;
+        const duration = 24, length = Math.ceil(c.sampleRate * duration);
+        const buffer = c.createBuffer(1, length, c.sampleRate), data = buffer.getChannelData(0);
+        const addVoice = (start, frequency, span, volume, style = 'pluck') => {
+            const from = Math.floor(start * c.sampleRate), count = Math.floor(span * c.sampleRate);
+            for (let i = 0; i < count && from + i < length; i++) {
+                const x = i / count;
+                const env = style === 'pad' ? Math.sin(Math.PI * x) ** .55 : Math.sin(Math.PI * x) ** 1.7 * Math.exp(-x * 1.15);
+                const phase = 2 * Math.PI * frequency * i / c.sampleRate;
+                const harmonics = style === 'pad' ? Math.sin(phase) + .24 * Math.sin(phase * 2) : Math.sin(phase) + .42 * Math.sin(phase * 2) + .18 * Math.sin(phase * 3);
+                data[from + i] += volume * env * harmonics;
+            }
+        };
+        const addDrum = (start, span, volume, noiseHit = false) => {
+            const from = Math.floor(start * c.sampleRate), count = Math.floor(span * c.sampleRate);
+            for (let i = 0; i < count && from + i < length; i++) {
+                const x = i / count, env = Math.exp(-x * (noiseHit ? 12 : 8));
+                const sample = noiseHit
+                    ? Math.sin(i * 127.1) * Math.sin(i * 311.7)
+                    : Math.sin(2 * Math.PI * (78 - 42 * x) * i / c.sampleRate);
+                data[from + i] += volume * env * sample;
+            }
+        };
+        // Slow, dark D-minor harmony creates the wide orchestral bed.
+        [[0, 73.42], [0, 110], [0, 146.83], [12, 65.41], [12, 98], [12, 130.81]].forEach(([t, f]) => addVoice(t, f, 12, .075, 'pad'));
+        // A repeating string-like arpeggio adds forward motion without quoting a theme.
+        const arpeggio = [293.66, 349.23, 440, 349.23, 261.63, 329.63, 392, 329.63];
+        for (let beat = 0; beat < 32; beat++) {
+            const t = beat * .75, f = arpeggio[beat % arpeggio.length];
+            addVoice(t, f, .62, beat % 4 === 0 ? .055 : .038);
+        }
+        // A broad, original melody answers the arpeggio in two rising-and-falling phrases.
+        const melody = [293.66, 349.23, 392, 440, 392, 349.23, 329.63, 293.66,
+                        261.63, 293.66, 329.63, 392, 440, 392, 349.23, 293.66];
+        melody.forEach((f, i) => addVoice(1 + i * 1.42, f, .92, i % 4 === 0 ? .085 : .065));
+        // Low taiko-like impacts and light metallic ticks are also synthesized from oscillators/noise.
+        for (let beat = 0; beat < 16; beat++) {
+            const t = beat * 1.5 + .04;
+            addDrum(t, .48, beat % 4 === 0 ? .095 : .055);
+            if (beat % 2 === 1) addDrum(t + .72, .14, .025, true);
+        }
+        musicGain = c.createGain(); musicGain.gain.value = .42; musicGain.connect(master);
+        musicSource = c.createBufferSource(); musicSource.buffer = buffer; musicSource.loop = true;
+        const source = musicSource;
+        musicSource.connect(musicGain); musicSource.onended = () => { if (musicSource === source) musicSource = null; };
+        musicSource.start();
+    }
+    function stopMusic() {
+        if (!musicSource) return;
+        const source = musicSource, gain = musicGain, now = actx.currentTime;
+        gain.gain.cancelScheduledValues(now); gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0, now + .8);
+        source.stop(now + .85); musicSource = null; musicGain = null;
+    }
+    function sfx(type) {
+        if (S.muted) return;
+        try {
+            switch (type) {
+                case 'ding': tone('sine', 880, 1320, 0.28, 0.25); break;
+                case 'wrong': tone('sawtooth', 170, 80, 0.4, 0.2); break;
+                case 'creak': tone('triangle', 95, 55, 0.35, 0.25); break;
+                case 'whoosh': noise('bandpass', 300, 1800, 0.55, 0.5); break;
+                case 'boom': noise('lowpass', 500, 60, 0.9, 1.0); tone('sine', 75, 30, 0.7, 0.7); break;
+                case 'crit': noise('lowpass', 800, 60, 1.0, 1.1); tone('sine', 90, 30, 0.8, 0.8); setTimeout(() => tone('sine', 1040, 1560, 0.3, 0.22), 120); break;
+                case 'tink': tone('square', 1900, 1500, 0.09, 0.12); tone('sine', 2600, 2000, 0.12, 0.1); break;
+                case 'arrow': noise('highpass', 1500, 4000, 0.3, 0.25); break;
+                case 'hit': noise('lowpass', 900, 100, 0.4, 0.8); break;
+                case 'horn': tone('sawtooth', 220, 210, 0.55, 0.22); setTimeout(() => tone('sawtooth', 220, 210, 0.55, 0.22), 650); break;
+                case 'collapse': noise('lowpass', 600, 40, 2.2, 1.0); tone('sine', 60, 25, 2.0, 0.7); break;
+                case 'win': [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone('triangle', f, f, 0.35, 0.25), i * 160)); break;
+            }
+        } catch (e) { }
+    }
+    function toggleMute() {
+        S.muted = !S.muted;
+        $('muteBtn').innerText = S.muted ? '🔇' : '🔊';
+        if (master) {
+            const now = actx.currentTime;
+            master.gain.cancelScheduledValues(now);
+            master.gain.setTargetAtTime(S.muted ? 0 : 0.6, now, .06);
+        }
+    }
+
+    /* ===================== PARTICLES & DEBRIS ===================== */
+    function initParticles() {
+        glowTex = makeGlowTex(); crackTex = makeCrackTex(); scorchTex = makeScorchTex();
+        const mk = (type, n) => {
+            for (let i = 0; i < n; i++) {
+                const m = new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: type === 'add' ? THREE.AdditiveBlending : THREE.NormalBlending });
+                const s = new THREE.Sprite(m); s.visible = false; scene.add(s);
+                particles.push({ s, type, vel: new THREE.Vector3(), life: 0, max: 1, size: 1, grow: 0, grav: 0, active: false, op: 1 });
+            }
+        };
+        mk('add', 240); mk('norm', 140);
+        const geo = new THREE.BoxGeometry(1, 1, 1);
+        const mats = [0x7a5a3c, 0x5e4430, 0x8a6a48].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+        for (let i = 0; i < 90; i++) {
+            const m = new THREE.Mesh(geo, mats[i % 3]); m.visible = false; m.castShadow = true; scene.add(m);
+            debris.push({ m, vel: new THREE.Vector3(), spin: new THREE.Vector3(), life: 0, active: false, s: 0.2 });
+        }
+    }
+    function emit(type, pos, vel, color, size, life, grow, grav, op) {
+        const p = particles.find(q => !q.active && q.type === type);
+        if (!p) return;
+        p.active = true; p.s.visible = true; p.s.position.copy(pos); p.vel.copy(vel);
+        p.s.material.color.set(color); p.size = size; p.grow = grow || 0; p.grav = grav || 0; p.life = p.max = life; p.op = op === undefined ? 1 : op;
+        p.s.scale.setScalar(size); p.s.material.opacity = p.op;
+    }
+    function spawnDebris(pos, count, power, color) {
+        for (let i = 0; i < count; i++) {
+            const d = debris.find(q => !q.active); if (!d) return;
+            d.active = true; d.m.visible = true; d.m.position.copy(pos);
+            d.s = rand(0.12, 0.34); d.m.scale.set(d.s, d.s * rand(0.6, 1), d.s);
+            d.vel.set(rand(-1, 1) * power, rand(0.5, 1.3) * power, rand(-0.3, 1.3) * power);
+            d.spin.set(rand(-8, 8), rand(-8, 8), rand(-8, 8)); d.life = rand(2.8, 4.2);
+        }
+    }
+    function updateParticles(dt) {
+        for (const p of particles) {
+            if (!p.active) continue;
+            p.life -= dt;
+            if (p.life <= 0) { p.active = false; p.s.visible = false; continue; }
+            const t = 1 - p.life / p.max;
+            p.s.position.addScaledVector(p.vel, dt); p.vel.y -= p.grav * dt;
+            p.s.scale.setScalar(Math.max(0.01, p.size + p.grow * t));
+            p.s.material.opacity = p.op * (1 - t);
+        }
+        for (const d of debris) {
+            if (!d.active) continue;
+            d.life -= dt;
+            if (d.life <= 0) { d.active = false; d.m.visible = false; continue; }
+            d.vel.y -= G * dt;
+            d.m.position.addScaledVector(d.vel, dt);
+            if (d.m.position.y < d.s * 0.4) {
+                d.m.position.y = d.s * 0.4; d.vel.y *= -0.35; d.vel.x *= 0.6; d.vel.z *= 0.6; d.spin.multiplyScalar(0.5);
+            }
+            d.m.rotation.x += d.spin.x * dt; d.m.rotation.y += d.spin.y * dt; d.m.rotation.z += d.spin.z * dt;
+            if (d.life < 0.5) d.m.scale.multiplyScalar(0.94);
+        }
+    }
+
+    function popWorld(v3, text, color, size) {
+        const v = v3.clone().project(camera);
+        const x = (v.x * 0.5 + 0.5) * window.innerWidth, y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+        popScreen(x, y, text, color, size);
+    }
+    function popScreen(x, y, text, color, size) {
+        const d = document.createElement('div');
+        d.className = 'pop'; d.innerText = text;
+        d.style.left = x + 'px'; d.style.top = y + 'px'; d.style.color = color || '#fbbf24'; d.style.fontSize = (size || 20) + 'px';
+        document.body.appendChild(d); setTimeout(() => d.remove(), 1500);
+    }
+    function banner(text, ms) {
+        $('bannerText').innerText = text;
+        const b = $('bannerToast'); b.classList.add('show');
+        clearTimeout(banner._t); banner._t = setTimeout(() => b.classList.remove('show'), ms || 2400);
+    }
+    function setBadge(html) { $('gestureText').innerHTML = html; }
+
+    /* ===================== SCENE ===================== */
+    function initThreeJS() {
+        scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0xb86a4a, 40, 170);
+
+        camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.set(0, 4.4, 15.5); camera.lookAt(0, 2.4, -6); camera.updateMatrixWorld();
+
+        renderer = new THREE.WebGLRenderer({ canvas: $('webglCanvas'), antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+
+        raycaster = new THREE.Raycaster();
+        aimPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -AIM_Z * -1 * -1);
+        aimPlane.constant = -AIM_Z * -1; // z - AIM_Z = 0 -> normal (0,0,1), constant = -AIM_Z... set explicitly below
+        aimPlane.constant = -AIM_Z;      // plane: z + constant = 0 -> z = -constant = AIM_Z
+
+        clock = new THREE.Clock();
+
+        initParticles();
+        buildSky();
+        buildLights();
+        buildGround();
+        buildCamp();
+        buildManjaniq();
+        buildMarkers();
+        buildMotes();
+
+        buildFortress(1, false);
+
+        window.addEventListener('resize', onWindowResize);
+        bindInput();
+        animateScene();
+    }
+
+    function buildSky() {
+        const sunDir = new THREE.Vector3(-0.75, 0.16, -0.64).normalize();
+        const mat = new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false, uniforms: { uSunDir: { value: sunDir } },
+            vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+            fragmentShader: `
+                uniform vec3 uSunDir; varying vec3 vDir;
+                void main(){
+                    float h = clamp(vDir.y, 0.0, 1.0);
+                    vec3 horizon = vec3(1.0, 0.55, 0.28);
+                    vec3 mid = vec3(0.55, 0.25, 0.42);
+                    vec3 top = vec3(0.03, 0.05, 0.17);
+                    vec3 c = mix(horizon, mid, smoothstep(0.0, 0.22, h));
+                    c = mix(c, top, smoothstep(0.18, 0.75, h));
+                    float s = max(dot(normalize(vDir), uSunDir), 0.0);
+                    c += vec3(1.0, 0.6, 0.3) * pow(s, 8.0) * 0.6 + vec3(1.0, 0.85, 0.55) * pow(s, 64.0);
+                    float below = smoothstep(0.0, -0.05, vDir.y);
+                    c = mix(c, vec3(0.45, 0.25, 0.2), below);
+                    gl_FragColor = vec4(c, 1.0);
+                }`
+        });
+        const sky = new THREE.Mesh(new THREE.SphereGeometry(900, 32, 20), mat); scene.add(sky);
+
+        const sp = [];
+        for (let i = 0; i < 700; i++) {
+            const a = Math.random() * Math.PI * 2, y = rand(0.15, 1), r = Math.sqrt(1 - y * y);
+            sp.push(Math.cos(a) * r * 850, y * 850, Math.sin(a) * r * 850);
+        }
+        const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+        scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.85, fog: false, depthWrite: false })));
+
+        const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffb35c, transparent: true, blending: THREE.AdditiveBlending, fog: false, depthWrite: false }));
+        glow.scale.setScalar(300); glow.position.copy(sunDir).multiplyScalar(700); scene.add(glow);
+        const disc = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xfff1c9, transparent: true, blending: THREE.AdditiveBlending, fog: false, depthWrite: false }));
+        disc.scale.setScalar(80); disc.position.copy(sunDir).multiplyScalar(690); scene.add(disc);
+
+        // Pergunungan jauh
+        const mMat = new THREE.MeshStandardMaterial({ color: 0x5a3a4a, flatShading: true, roughness: 1 });
+        for (let i = 0; i < 18; i++) {
+            const h = rand(14, 34), r = rand(14, 28);
+            const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 6), mMat);
+            m.position.set(rand(-190, 190), h / 2 - 2, rand(-120, -75)); m.rotation.y = Math.random() * 3; scene.add(m);
+        }
+    }
+
+    function buildLights() {
+        scene.add(new THREE.HemisphereLight(0xffd9b0, 0x3b2a4a, 0.6));
+        const sun = new THREE.DirectionalLight(0xffc58a, 1.7);
+        sun.position.set(-22, 12, 14); sun.castShadow = true;
+        const ss = window.innerWidth < 800 ? 1024 : 2048;
+        sun.shadow.mapSize.set(ss, ss);
+        Object.assign(sun.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 1, far: 90 });
+        sun.shadow.bias = -0.0006;
+        sun.target.position.set(0, 0, -4); scene.add(sun); scene.add(sun.target);
+
+        for (let i = 0; i < 4; i++) {
+            const l = new THREE.PointLight(0xff9a3c, 1.2, 14, 2); scene.add(l); torchLights.push(l);
+        }
+        torchLights[2].position.set(-3.4, 3.0, 8); torchLights[3].position.set(3.4, 3.0, 8);
+        projLight = new THREE.PointLight(0xff7a2a, 0, 12, 2); scene.add(projLight);
+    }
+
+    function addFlame(parent, x, y, z, size) {
+        const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffa040, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        s.position.set(x, y, z); s.scale.setScalar(size); parent.add(s);
+        flames.push({ s, base: size, ph: Math.random() * 10 });
+        return s;
+    }
+    function addTorch(parent, x, y, z) {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0x2b1a0e, roughness: 1 }));
+        pole.position.set(x, y, z); pole.castShadow = true; parent.add(pole);
+        return addFlame(parent, x, y + 0.55, z, 0.9);
+    }
+
+    function makeFlag(parent, x, y, z, color, list) {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 3, 8), new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 1 }));
+        pole.position.set(x, y, z); pole.castShadow = true; parent.add(pole);
+        const geo = new THREE.PlaneGeometry(1.8, 1.0, 12, 4);
+        const flag = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide, roughness: 0.8 }));
+        flag.position.set(x + 0.95, y + 1.0, z); flag.castShadow = true; parent.add(flag);
+        list.push({ geo, orig: Float32Array.from(geo.attributes.position.array), ph: Math.random() * 6 });
+    }
+    function waveFlags(list, t) {
+        for (const f of list) {
+            const pos = f.geo.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const ox = f.orig[i * 3], k = (ox + 0.9) / 1.8;
+                pos.setZ(i, Math.sin(ox * 3.2 + t * 4 + f.ph) * 0.14 * k);
+            }
+            pos.needsUpdate = true;
+        }
+    }
+
+    function buildGround() {
+        const geo = new THREE.PlaneGeometry(400, 400, 100, 100);
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i), y = pos.getY(i); // y plane = -z world after rotation
+            const wz = -y;
+            const edge = clamp((Math.abs(x) - 16) / 20, 0, 1) + clamp((-wz - 18) / 25, 0, 1);
+            const n = Math.sin(x * 0.07) * Math.cos(wz * 0.05) * 2.2 + Math.sin(x * 0.19 + wz * 0.13) * 0.6;
+            pos.setZ(i, n * Math.min(1, edge));
+        }
+        geo.computeVertexNormals();
+        const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: sandTex(), roughness: 1 }));
+        ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+        const rockMat = new THREE.MeshStandardMaterial({ color: 0x6f5a48, roughness: 1, flatShading: true });
+        for (let i = 0; i < 40; i++) {
+            const x = rand(-45, 45), z = rand(-30, 20);
+            if (Math.abs(x) < 7 && z > -16) continue;
+            const r = new THREE.Mesh(new THREE.IcosahedronGeometry(rand(0.3, 1.1), 0), rockMat);
+            r.position.set(x, rand(0.1, 0.4), z); r.rotation.set(Math.random(), Math.random(), Math.random());
+            r.castShadow = r.receiveShadow = true; scene.add(r);
+        }
+    }
+
+    function buildCamp() {
+        const cloth = [0xe8d9b5, 0xd9c394, 0xcfb98c];
+        const tents = [[-9, 3], [-12, 7], [9.5, 4], [12.5, 8], [-8, 11], [8, 12]];
+        tents.forEach(([x, z], i) => {
+            const t = new THREE.Mesh(new THREE.ConeGeometry(1.6, 2, 4), new THREE.MeshStandardMaterial({ color: cloth[i % 3], roughness: 0.95 }));
+            t.position.set(x, 1, z); t.rotation.y = Math.PI / 4 + rand(-0.2, 0.2); t.castShadow = t.receiveShadow = true; scene.add(t);
+        });
+        makeFlag(scene, -5.2, 1.5, 9, 0x15803d, staticFlags);
+        makeFlag(scene, 5.2, 1.5, 9, 0x15803d, staticFlags);
+        addTorch(scene, -3.4, 1.4, 8);
+        addTorch(scene, 3.4, 1.4, 8);
+    }
+
+    function buildManjaniq() {
+        manj.group = new THREE.Group(); manj.group.position.set(0, 0, 6);
+        const wood = new THREE.MeshStandardMaterial({ color: 0x4a2b12, roughness: 0.85 });
+        const darkWood = new THREE.MeshStandardMaterial({ color: 0x2e1a0a, roughness: 0.9 });
+        const iron = new THREE.MeshStandardMaterial({ color: 0x3a3a40, roughness: 0.5, metalness: 0.7 });
+        const add = (geo, mat, x, y, z, rx, ry, rz) => {
+            const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z);
+            if (rx) m.rotation.x = rx; if (ry) m.rotation.y = ry; if (rz) m.rotation.z = rz;
+            m.castShadow = m.receiveShadow = true; manj.group.add(m); return m;
+        };
+        add(new THREE.BoxGeometry(2.8, 0.35, 4), wood, 0, 0.75, 0);
+        // roda
+        [[-1.5, 1.4], [1.5, 1.4], [-1.5, -1.4], [1.5, -1.4]].forEach(([x, z]) => {
+            add(new THREE.CylinderGeometry(0.55, 0.55, 0.22, 16), darkWood, x, 0.55, z, 0, 0, Math.PI / 2);
+            add(new THREE.CylinderGeometry(0.12, 0.12, 0.26, 8), iron, x, 0.55, z, 0, 0, Math.PI / 2);
+        });
+        // tiang A-frame
+        [-1.1, 1.1].forEach(x => {
+            add(new THREE.BoxGeometry(0.22, 2.8, 0.22), wood, x, 2.1, 0.55, -0.22, 0, x > 0 ? -0.1 : 0.1);
+            add(new THREE.BoxGeometry(0.22, 2.8, 0.22), wood, x, 2.1, -0.55, 0.22, 0, x > 0 ? -0.1 : 0.1);
+        });
+        add(new THREE.BoxGeometry(2.6, 0.2, 0.2), darkWood, 0, 3.2, 0);
+        add(new THREE.CylinderGeometry(0.1, 0.1, 2.9, 10), iron, 0, 3.15, 0, 0, 0, Math.PI / 2);
+
+        // lengan lontar
+        manj.arm = new THREE.Group(); manj.arm.position.set(0, 2.2 + 0.95, 0); // pivot dunia y ~3.15
+        manj.arm.position.set(0, 2.2, 0);
+        const armMesh = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 4.8), wood);
+        armMesh.position.z = -1.2; armMesh.castShadow = true; manj.arm.add(armMesh);
+        const cw = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), iron);
+        cw.position.set(0, -0.55, 1.2); cw.castShadow = true; manj.arm.add(cw);
+        manj.ball = new THREE.Mesh(new THREE.IcosahedronGeometry(0.42, 1), new THREE.MeshStandardMaterial({ color: 0x7a5a3c, roughness: 0.9 }));
+        manj.ball.position.set(0, 0.05, -3.6); manj.ball.castShadow = true; manj.arm.add(manj.ball);
+        manj.arm.rotation.x = REST_ANGLE;
+        manj.group.add(manj.arm);
+        manj.state = 'idle'; manj.t = 0; manj.pending = null;
+        scene.add(manj.group);
+    }
+
+    function buildMarkers() {
+        // reticle sasaran (merah)
+        reticle = new THREE.Group();
+        const rm = new THREE.MeshBasicMaterial({ color: 0xff3b3b, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthTest: false });
+        reticle.add(new THREE.Mesh(new THREE.RingGeometry(0.3, 0.38, 40), rm));
+        [[0.55, 0, 0.3, 0.06], [-0.55, 0, 0.3, 0.06], [0, 0.55, 0.06, 0.3], [0, -0.55, 0.06, 0.3]].forEach(([x, y, w, h]) => {
+            const t = new THREE.Mesh(new THREE.PlaneGeometry(w, h), rm); t.position.set(x, y, 0); reticle.add(t);
+        });
+        reticle.add(new THREE.Mesh(new THREE.CircleGeometry(0.05, 12), rm));
+        reticle.renderOrder = 20; reticle.children.forEach(c => c.renderOrder = 20);
+        scene.add(reticle);
+
+        // titik lemah (emas)
+        weakMarker = new THREE.Group();
+        const gm = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.95, side: THREE.DoubleSide, depthTest: false });
+        weakMarker.add(new THREE.Mesh(new THREE.RingGeometry(0.62, 0.72, 40), gm));
+        const inner = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.36, 6), gm); weakMarker.add(inner); weakMarker.userData.inner = inner;
+        const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffc21a, transparent: true, blending: THREE.AdditiveBlending, depthTest: false, opacity: 0.8 }));
+        glow.scale.setScalar(2.2); weakMarker.add(glow);
+        weakMarker.children.forEach(c => c.renderOrder = 19);
+        scene.add(weakMarker);
+
+        // jejak trajektori
+        const tg = new THREE.BufferGeometry();
+        tg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(26 * 3), 3));
+        trajPoints = new THREE.Points(tg, new THREE.PointsMaterial({ color: 0xfbbf24, size: 0.16, transparent: true, opacity: 0.75, depthWrite: false, map: glowTex, blending: THREE.AdditiveBlending }));
+        trajPoints.frustumCulled = false; scene.add(trajPoints);
+    }
+
+    function buildMotes() {
+        const n = 180, p = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) { p[i * 3] = rand(-22, 22); p[i * 3 + 1] = rand(0.3, 10); p[i * 3 + 2] = rand(-14, 16); }
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p, 3));
+        motes = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffd9a0, size: 0.14, map: glowTex, transparent: true, opacity: 0.45, depthWrite: false, blending: THREE.AdditiveBlending }));
+        motes.frustumCulled = false; scene.add(motes);
+    }
+
+    /* ===================== FORTRESS ===================== */
+    function disposeFortress() {
+        if (!fort) return;
+        scene.remove(fort.group);
+        fort.group.traverse(o => {
+            if (o.geometry) o.geometry.dispose();
+            if (o.material) {
+                if (o.material.map && o.material.map !== crackTex && o.material.map !== scorchTex && o.material.map !== glowTex) o.material.map.dispose();
+                o.material.dispose();
+            }
+        });
+        flames = flames.filter(f => !fort.flameList.includes(f));
+        fort = null;
+    }
+
+    function buildFortress(lvl, animate) {
+        disposeFortress();
+        const cfg = LEVELS[lvl], group = new THREE.Group();
+        const f = { group, cfg, merlons: [], cracks: [], scorches: [], defenders: [], flags: [], flameList: [],
+                    rising: !!animate, riseT: 0, riseFrom: -((cfg.keep ? cfg.keep.h : cfg.TH) + 2), collapseT: 0 };
+
+        const wallMat = new THREE.MeshStandardMaterial({ map: brickTex(cfg.color, cfg.W / 3, cfg.H / 2.4), roughness: 0.95 });
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(cfg.W, cfg.H, 2), wallMat);
+        wall.position.set(0, cfg.H / 2, -10); wall.castShadow = wall.receiveShadow = true; group.add(wall); f.wall = wall;
+        const stoneMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(cfg.color).multiplyScalar(0.8), roughness: 1 });
+
+        const ledge = new THREE.Mesh(new THREE.BoxGeometry(cfg.W + 0.3, 0.3, 2.3), stoneMat);
+        ledge.position.set(0, cfg.H + 0.15, -10); ledge.castShadow = ledge.receiveShadow = true; group.add(ledge);
+
+        const mGeo = new THREE.BoxGeometry(0.55, 0.55, 0.7);
+        const addMerlon = (x, y, z, ry) => {
+            const m = new THREE.Mesh(mGeo, stoneMat); m.position.set(x, y, z); if (ry) m.rotation.y = ry;
+            m.castShadow = m.receiveShadow = true; group.add(m);
+            f.merlons.push({ m, thr: 0.1 + Math.random() * 0.8, fallen: false });
+        };
+        const n = Math.floor(cfg.W / 1.0);
+        for (let i = 0; i < n; i++) {
+            const x = -cfg.W / 2 + 0.5 + i * (cfg.W - 1) / (n - 1);
+            addMerlon(x, cfg.H + 0.575, -9.2); addMerlon(x, cfg.H + 0.575, -10.8);
+        }
+
+        // menara
+        cfg.towers.forEach((x, idx) => {
+            const tMat = new THREE.MeshStandardMaterial({ map: brickTex(cfg.color, 3, cfg.TH / 2.4), roughness: 0.95 });
+            const t = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.6, cfg.TH, 18), tMat);
+            t.position.set(x, cfg.TH / 2, -10); t.castShadow = t.receiveShadow = true; group.add(t);
+            const lg = new THREE.Mesh(new THREE.CylinderGeometry(1.65, 1.5, 0.35, 18), stoneMat);
+            lg.position.set(x, cfg.TH + 0.17, -10); lg.castShadow = true; group.add(lg);
+            for (let k = 0; k < 9; k++) {
+                const a = (k / 9) * Math.PI * 2;
+                addMerlon(x + Math.cos(a) * 1.45, cfg.TH + 0.62, -10 + Math.sin(a) * 1.45, -a);
+            }
+            const win = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.8, 0.1), new THREE.MeshStandardMaterial({ color: 0x120a05 }));
+            win.position.set(x, cfg.TH * 0.6, -10 + 1.45); group.add(win);
+            makeFlag(group, x, cfg.TH + 1.7, -10, idx === 0 ? 0x7f1d1d : 0x1c1917, f.flags);
+        });
+
+        // kubu dalam
+        if (cfg.keep) {
+            const k = cfg.keep;
+            const kMat = new THREE.MeshStandardMaterial({ map: brickTex(cfg.color, k.w / 3, k.h / 2.4), roughness: 0.95 });
+            const keep = new THREE.Mesh(new THREE.BoxGeometry(k.w, k.h, 3), kMat);
+            keep.position.set(0, k.h / 2, -14); keep.castShadow = keep.receiveShadow = true; group.add(keep);
+            for (let i = 0; i < 6; i++) addMerlon(-k.w / 2 + 0.4 + i * (k.w - 0.8) / 5, k.h + 0.28, -12.6);
+            for (let i = -1; i <= 1; i++) {
+                const w = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.9, 0.1), new THREE.MeshStandardMaterial({ color: 0x120a05 }));
+                w.position.set(i * 0.9, cfg.H + (k.h - cfg.H) * 0.6, -12.48); group.add(w);
+            }
+            makeFlag(group, 0, k.h + 1.5, -14, 0xb91c1c, f.flags);
+        }
+
+        // gerbang
+        if (cfg.gate) {
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(2.4, 3.4, 0.04), new THREE.MeshStandardMaterial({ color: 0x2a1a10, roughness: 0.9 }));
+            frame.position.set(0, 1.7, -8.98); group.add(frame);
+            const door = new THREE.Mesh(new THREE.BoxGeometry(1.9, 2.9, 0.04), new THREE.MeshStandardMaterial({ color: 0x5a3a1c, roughness: 0.9 }));
+            door.position.set(0, 1.45, -8.97); group.add(door);
+            for (let i = -2; i <= 2; i++) {
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.9, 0.045), new THREE.MeshStandardMaterial({ color: 0x2a1a10 }));
+                p.position.set(i * 0.38, 1.45, -8.96); group.add(p);
+            }
+        }
+
+        // obor
+        [-(cfg.W / 2 - 0.5), cfg.W / 2 - 0.5].forEach((x, i) => {
+            const fl = addTorch(group, x, 2.4, -8.88);
+            f.flameList.push(flames[flames.length - 1]);
+            torchLights[i].position.set(x, 3.1, -7.8);
+        });
+
+        // pengawal
+        const dn = Math.max(3, Math.floor(cfg.W / 2.2));
+        for (let i = 0; i < dn; i++) {
+            const dx = -cfg.W / 2 + 1 + i * (cfg.W - 2) / (dn - 1);
+            const g = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.7, 8), new THREE.MeshStandardMaterial({ color: 0x5b1e1e, roughness: 0.9 }));
+            body.position.y = 0.35; body.castShadow = true;
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 10), new THREE.MeshStandardMaterial({ color: 0xd9a679 }));
+            head.position.y = 0.86; head.castShadow = true;
+            const helm = new THREE.Mesh(new THREE.SphereGeometry(0.165, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x4a4a52, metalness: 0.6, roughness: 0.4 }));
+            helm.position.y = 0.9;
+            const spear = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 1.6, 6), new THREE.MeshStandardMaterial({ color: 0x3a2a1a }));
+            spear.position.set(0.26, 0.85, 0);
+            const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 6), new THREE.MeshStandardMaterial({ color: 0xbfc4cc, metalness: 0.8, roughness: 0.3 }));
+            tip.position.set(0.26, 1.75, 0);
+            g.add(body, head, helm, spear, tip);
+            g.position.set(dx, cfg.H + 0.3, -9.75); group.add(g);
+            f.defenders.push({ g, x: dx, falling: false, vel: new THREE.Vector3(), ph: Math.random() * 6 });
+        }
+
+        // retak
+        const crackSpots = [[-0.28, 0.55], [0.22, 0.4], [-0.05, 0.72], [0.34, 0.3]];
+        crackSpots.forEach(([fx, fy]) => {
+            const mat = new THREE.MeshBasicMaterial({ map: crackTex, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+            const c = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), mat);
+            c.position.set(fx * cfg.W, fy * cfg.H, -8.975); c.rotation.z = rand(0, 6.28); group.add(c); f.cracks.push({ mesh: c });
+        });
+
+        f.bx = cfg.W / 2 - 0.5; f.byMin = 0.4; f.byMax = cfg.H - 0.4;
+        group.position.y = animate ? f.riseFrom : 0;
+        scene.add(group); fort = f;
+        newWeakPoint();
+        aim.tx = clamp(aim.tx, -f.bx, f.bx); aim.ty = clamp(aim.ty, f.byMin, f.byMax);
+    }
+
+    function newWeakPoint() {
+        const prev = { x: weak.x, y: weak.y };
+        for (let i = 0; i < 12; i++) {
+            weak.x = rand(-fort.bx, fort.bx); weak.y = rand(fort.byMin + 0.3, fort.byMax - 0.3);
+            if (Math.hypot(weak.x - prev.x, weak.y - prev.y) > 1.6) break;
+        }
+    }
+
+    function applyDamageVisuals() {
+        const frac = Math.max(0, S.hp) / 100;
+        fort.cracks.forEach((c, i) => { c.mesh.material.opacity = clamp(((1 - frac) - i * 0.2) / 0.2, 0, 1) * 0.9; });
+        fort.wall.material.color.setScalar(0.6 + 0.4 * frac);
+        fort.merlons.forEach(o => {
+            if (!o.fallen && frac < o.thr) {
+                o.fallen = true; const p = new THREE.Vector3(); o.m.getWorldPosition(p); o.m.visible = false;
+                spawnDebris(p, 3, 3, 0); emitDust(p, 4);
+            }
+        });
+    }
+    function emitDust(p, n) {
+        for (let i = 0; i < n; i++)
+            emit('norm', p, new THREE.Vector3(rand(-1, 1), rand(0.3, 1.5), rand(0, 1.5)), 0xc8a070, 1.2, rand(0.9, 1.5), 2.8, -0.3, 0.55);
+    }
+    function knockDefender(d) {
+        if (d.falling) return;
+        d.falling = true; d.vel.set(rand(-1.5, 1.5), rand(2, 4), rand(1, 3.5));
+        defendersFalling.push(d);
+    }
+
+    /* ===================== INPUT ===================== */
+    function setAimNDC(nx, ny) {
+        raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
+        const hit = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(aimPlane, hit)) {
+            aim.tx = clamp(hit.x, -fort.bx, fort.bx);
+            aim.ty = clamp(hit.y, fort.byMin, fort.byMax);
+        }
+    }
+    function bindInput() {
+        const cv = renderer.domElement;
+        const toNDC = e => [(e.clientX / window.innerWidth) * 2 - 1, -((e.clientY / window.innerHeight) * 2 - 1)];
+        cv.addEventListener('pointermove', e => { if (cameraActive) return; setAimNDC(...toNDC(e)); });
+        cv.addEventListener('pointerdown', e => { if (cameraActive) return; setAimNDC(...toNDC(e)); pressed = true; });
+        cv.addEventListener('pointerup', e => { if (cameraActive || !pressed) return; pressed = false; setAimNDC(...toNDC(e)); fire(); });
+        window.addEventListener('keydown', e => {
+            if (S.home) { if (e.key === 'Enter' && $('infoPanel').classList.contains('hidden')) startGame(); return; }
+            if (quiz.open) {
+                if (['1', '2', '3'].includes(e.key)) pickOpt(+e.key - 1);
+                if (e.key === 'Enter') confirmQuizAnswer();
+                return;
+            }
+            if (!S.running || S.paused) return;
+            if (e.code === 'Space') { e.preventDefault(); raiseShield(); }
+            else if (e.key === 'ArrowLeft') { aim.tx = clamp(aim.tx - 0.3, -fort.bx, fort.bx); }
+            else if (e.key === 'ArrowRight') { aim.tx = clamp(aim.tx + 0.3, -fort.bx, fort.bx); }
+            else if (e.key === 'ArrowUp') { aim.ty = clamp(aim.ty + 0.3, fort.byMin, fort.byMax); }
+            else if (e.key === 'ArrowDown') { aim.ty = clamp(aim.ty - 0.3, fort.byMin, fort.byMax); }
+            else if (e.key === 'Enter' || e.key === 'f' || e.key === 'F') fire();
+        });
+    }
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    /* ===================== FIRING ===================== */
+    function canFire() {
+        return S.running && !S.paused && S.ammo > 0 && !S.collapsing && fort && !fort.rising && manj.state === 'idle';
+    }
+    function manualLaunch() { fire(); }
+    function fire() {
+        if (!S.running || S.paused) return;
+        if (S.ammo <= 0) { setBadge('<span class="text-red-400 font-semibold">Terkunci! Jawab soalan dahulu.</span>'); return; }
+        if (!canFire()) return;
+        S.ammo--; S.shots++;
+        manj.state = 'swing'; manj.t = 0; manj.pending = { x: aim.x, y: aim.y };
+        sfx('creak');
+        updateLaunchUI(); updateHUD();
+    }
+    function shotVel(tx, ty) {
+        return new THREE.Vector3((tx - RELEASE.x) / FLIGHT, (ty - RELEASE.y + 0.5 * G * FLIGHT * FLIGHT) / FLIGHT, (AIM_Z - RELEASE.z) / FLIGHT);
+    }
+    function releaseShot() {
+        const tgt = manj.pending;
+        manj.ball.visible = false;
+        const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 1),
+            new THREE.MeshStandardMaterial({ color: 0x7a5a3c, roughness: 0.9, emissive: 0xff5a14, emissiveIntensity: 0.6 }));
+        mesh.position.copy(RELEASE); mesh.castShadow = true; scene.add(mesh);
+        projectiles.push({ mesh, vel: shotVel(tgt.x, tgt.y), target: tgt, age: 0 });
+        sfx('whoosh'); shakeAmt = Math.max(shakeAmt, 0.12);
+        for (let i = 0; i < 6; i++) emit('norm', RELEASE, new THREE.Vector3(rand(-1, 1), rand(0, 1.5), rand(-1, 1)), 0xd0b080, 0.9, 0.9, 1.6, 0, 0.5);
+    }
+
+    function onImpact(x, y) {
+        const d = Math.hypot(x - weak.x, y - weak.y);
+        const crit = d < 0.85;
+        let dmg = crit ? 40 : 18;
+        if (crit) { S.combo++; S.weakHits++; } else { S.combo = 0; }
+        const mult = crit && S.combo > 1 ? 1 + 0.25 * Math.min(S.combo - 1, 6) : 1;
+        const pts = Math.round((crit ? 150 : 50) * S.level * mult);
+        S.score += pts; S.hp -= dmg;
+
+        const wp = new THREE.Vector3(x, y, AIM_Z + 0.2);
+        // kesan visual
+        for (let i = 0; i < 7; i++) emit('add', wp, new THREE.Vector3(rand(-2, 2), rand(-1, 3), rand(0.5, 3)), crit ? 0xffd34a : 0xff8a2a, rand(1.2, 2.6), 0.5, 2, 0, 1);
+        emitDust(wp, 16);
+        for (let i = 0; i < 14; i++) emit('add', wp, new THREE.Vector3(rand(-5, 5), rand(1, 6), rand(1, 6)), 0xffd070, 0.25, 0.8, 0, 12, 1);
+        spawnDebris(wp, crit ? 12 : 7, crit ? 6 : 4, 0);
+        shakeAmt = Math.max(shakeAmt, crit ? 0.7 : 0.4);
+        sfx(crit ? 'crit' : 'boom');
+
+        // kesan hangus
+        const sc = new THREE.Mesh(new THREE.PlaneGeometry(crit ? 1.8 : 1.3, crit ? 1.8 : 1.3),
+            new THREE.MeshBasicMaterial({ map: scorchTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 }));
+        sc.position.set(x, y, -8.965); sc.rotation.z = Math.random() * 6; fort.group.add(sc); fort.scorches.push(sc);
+        if (fort.scorches.length > 14) { const old = fort.scorches.shift(); fort.group.remove(old); old.geometry.dispose(); old.material.dispose(); }
+
+        // pengawal tumbang
+        fort.defenders.forEach(df => { if (!df.falling && Math.abs(df.x - x) < (crit ? 2.2 : 1.1)) { knockDefender(df); S.score += 25; popWorld(new THREE.Vector3(df.x, fort.cfg.H + 1.2, -9), '+25', '#fca5a5', 16); } });
+
+        popWorld(wp, crit ? `TEPAT! +${pts}` : `+${pts}`, crit ? '#fde047' : '#fbbf24', crit ? 28 : 20);
+        if (crit && S.combo > 1) popWorld(new THREE.Vector3(x, y + 0.9, AIM_Z), `Kombo x${S.combo}`, '#fb923c', 18);
+        if (crit) newWeakPoint();
+
+        applyDamageVisuals(); updateHUD(); updateLaunchUI();
+        if (S.hp <= 0) startCollapse();
+    }
+
+    /* ===================== COLLAPSE / LEVELS ===================== */
+    function startCollapse() {
+        S.collapsing = true; fort.collapseT = 0; S.hp = 0;
+        sfx('collapse'); shakeAmt = 1.4;
+        fort.merlons.forEach(o => { if (!o.fallen) { o.fallen = true; const p = new THREE.Vector3(); o.m.getWorldPosition(p); o.m.visible = false; spawnDebris(p, 2, 4, 0); } });
+        fort.defenders.forEach(knockDefender);
+        const bonus = 200 * S.level; S.score += bonus;
+        popScreen(window.innerWidth / 2, window.innerHeight * 0.4, `Benteng Runtuh! +${bonus}`, '#fde047', 30);
+        updateHUD(); updateLaunchUI();
+    }
+    function finishCollapse() {
+        S.collapsing = false; S.combo = 0;
+        if (S.level >= 3) { endGame(true, "Syabas! Anda menembusi ketiga-tiga lapisan pertahanan Benteng Taif dengan pemahaman taktik sejarah yang cemerlang!"); return; }
+        S.level++; S.timer += 45; S.hp = 100;
+        buildFortress(S.level, true);
+        banner(`TAHAP ${S.level}: ${LEVELS[S.level].name}`, 2800);
+        updateHUD(); updateLaunchUI();
+    }
+
+    /* ===================== VOLLEY (HUJAN PANAH) ===================== */
+    const V = { state: 'idle', t: 0, cd: 12, blockedFlag: false };
+    function resetVolley() { V.state = 'idle'; V.t = 0; V.cd = rand(10, 14); $('volleyBanner').classList.add('hidden'); arrows.forEach(a => scene.remove(a.g)); arrows = []; }
+    function launchVolley() {
+        sfx('arrow');
+        const n = 7;
+        for (let i = 0; i < n; i++) {
+            const g = new THREE.Group();
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.1, 6), new THREE.MeshStandardMaterial({ color: 0x6b4a2a }));
+            const head = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.22, 6), new THREE.MeshStandardMaterial({ color: 0xb8bcc4, metalness: 0.8, roughness: 0.3 }));
+            head.position.y = 0.66; g.add(shaft, head);
+            const start = new THREE.Vector3(rand(-fort.cfg.W / 2, fort.cfg.W / 2), fort.cfg.H + 1, -9.5);
+            const end = new THREE.Vector3(rand(-4.5, 4.5), rand(1, 4), rand(9, 13));
+            const vel = new THREE.Vector3((end.x - start.x) / ARROW_T, (end.y - start.y + 0.5 * G * ARROW_T * ARROW_T) / ARROW_T, (end.z - start.z) / ARROW_T);
+            g.position.copy(start); scene.add(g);
+            arrows.push({ g, start, end, vel, age: -i * 0.04 });
+        }
+    }
+    function resolveVolley() {
+        if (S.shield > 0) {
+            S.score += 30; sfx('tink');
+            popScreen(window.innerWidth / 2, window.innerHeight * 0.45, 'Dabbabah berjaya! +30', '#7dd3fc', 24);
+            for (let i = 0; i < 18; i++) emit('add', new THREE.Vector3(rand(-3, 3), rand(1, 4), 11), new THREE.Vector3(rand(-3, 3), rand(0, 4), rand(-1, 2)), 0x7dd3fc, 0.4, 0.5, 0, 6, 1);
+        } else {
+            S.timer = Math.max(1, S.timer - 8); shakeAmt = Math.max(shakeAmt, 0.8); sfx('hit');
+            const f = $('hitFlash'); f.style.opacity = 1; setTimeout(() => f.style.opacity = 0, 250);
+            popScreen(window.innerWidth / 2, window.innerHeight * 0.45, 'Terkena panah! -8s', '#f87171', 26);
+        }
+        updateHUD();
+    }
+    function updateVolley(dt) {
+        if (!S.running || S.paused || S.collapsing || !fort || fort.rising) return;
+        if (V.state === 'idle') {
+            V.cd -= dt;
+            if (V.cd <= 0) { V.state = 'warn'; V.t = 0; $('volleyBanner').classList.remove('hidden'); sfx('horn'); }
+        } else if (V.state === 'warn') {
+            V.t += dt;
+            if (V.t >= 2.2) { launchVolley(); V.state = 'fly'; V.t = 0; $('volleyBanner').classList.add('hidden'); }
+        } else if (V.state === 'fly') {
+            V.t += dt;
+            if (V.t >= ARROW_T) { resolveVolley(); V.state = 'idle'; V.cd = Math.max(6, rand(11, 16) - S.level * 1.5); }
+        }
+    }
+    function updateArrows(dt) {
+        for (let i = arrows.length - 1; i >= 0; i--) {
+            const a = arrows[i]; a.age += dt;
+            if (a.age < 0) { a.g.visible = false; continue; }
+            a.g.visible = true;
+            const t = a.age;
+            if (t >= ARROW_T) { scene.remove(a.g); arrows.splice(i, 1); continue; }
+            a.g.position.set(a.start.x + a.vel.x * t, a.start.y + a.vel.y * t - 0.5 * G * t * t, a.start.z + a.vel.z * t);
+            const dir = new THREE.Vector3(a.vel.x, a.vel.y - G * t, a.vel.z).normalize();
+            a.g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        }
+    }
+
+    /* ===================== SHIELD ===================== */
+    function raiseShield() {
+        if (!S.running || S.paused || S.shieldCD > 0) return;
+        S.shield = 1.6; S.shieldCD = 3.0;
+        $('shieldOverlay').classList.add('on'); sfx('tink');
+    }
+
+    /* ===================== MAIN LOOP ===================== */
+    let lastTimerShown = -1, lastShieldTxt = '';
+    function animateScene() {
+        requestAnimationFrame(animateScene);
+        const dt = Math.min(clock.getDelta(), 0.05), time = clock.elapsedTime;
+
+        // timer
+        if (S.running && !S.paused && !S.collapsing && fort && !fort.rising) {
+            S.timer -= dt;
+            if (S.timer <= 0) { S.timer = 0; updateHUD(); endGame(false, "Masa pertempuran telah tamat! Pertahanan Taif masih bertahan."); }
+        }
+        const ts = Math.ceil(S.timer);
+        if (ts !== lastTimerShown) { lastTimerShown = ts; $('hudTimer').innerText = `${ts}s`; }
+
+        // shield timers
+        if (S.shield > 0) { S.shield -= dt; if (S.shield <= 0) $('shieldOverlay').classList.remove('on'); }
+        if (S.shieldCD > 0) S.shieldCD -= dt;
+        const stxt = S.shield > 0 ? '🛡️ Aktif!' : (S.shieldCD > 0 ? `🛡️ ${Math.ceil(S.shieldCD)}s` : '🛡️ Dabbabah');
+        if (stxt !== lastShieldTxt) {
+            lastShieldTxt = stxt; const sb = $('shieldBtn'); sb.innerText = stxt;
+            sb.className = 'shrink-0 text-white font-extrabold py-2.5 px-3 rounded-xl text-xs shadow transition ' + (S.shieldCD > 0 && S.shield <= 0 ? 'bg-slate-700 opacity-70' : 'bg-sky-700 hover:bg-sky-600');
+        }
+
+        // aim smoothing
+        const k = Math.min(1, dt * 14);
+        aim.x += (aim.tx - aim.x) * k; aim.y += (aim.ty - aim.y) * k;
+
+        // manjaniq animation
+        if (manj.state === 'swing') {
+            manj.t += dt / 0.28;
+            const e = manj.t * manj.t;
+            manj.arm.rotation.x = THREE.MathUtils.lerp(REST_ANGLE, THROW_ANGLE, Math.min(1, e));
+            if (manj.t >= 1) { releaseShot(); manj.state = 'return'; manj.t = 0; }
+        } else if (manj.state === 'return') {
+            manj.t += dt / 0.9;
+            const e = 1 - Math.pow(1 - Math.min(1, manj.t), 2);
+            manj.arm.rotation.x = THREE.MathUtils.lerp(THROW_ANGLE, REST_ANGLE, e);
+            if (manj.t > 0.7 && S.ammo > 0) manj.ball.visible = true;
+            if (manj.t >= 1) { manj.state = 'idle'; manj.arm.rotation.x = REST_ANGLE; manj.ball.visible = S.ammo > 0; }
+        }
+
+        // rising fortress
+        if (fort && fort.rising) {
+            fort.riseT += dt / 1.4; const t = Math.min(1, fort.riseT), e = 1 - Math.pow(1 - t, 3);
+            fort.group.position.y = fort.riseFrom * (1 - e);
+            if (Math.random() < 0.8) emit('norm', new THREE.Vector3(rand(-fort.cfg.W / 2, fort.cfg.W / 2), 0.3, -8.6), new THREE.Vector3(rand(-1, 1), rand(0.5, 1.5), rand(0.5, 2)), 0xc8a070, 1.4, 1.3, 3, -0.2, 0.5);
+            if (t >= 1) { fort.rising = false; fort.group.position.y = 0; }
+        }
+        // collapsing
+        if (S.collapsing && fort) {
+            fort.collapseT += dt; const t = Math.min(1, fort.collapseT / 2.0), e = t * t;
+            fort.group.position.y = -e * (Math.max(fort.cfg.TH, fort.cfg.keep ? fort.cfg.keep.h : 0) + 2);
+            fort.group.rotation.x = e * 0.05;
+            fort.group.position.x = (Math.random() - 0.5) * 0.12 * (1 - e);
+            for (let i = 0; i < 3; i++) emit('norm', new THREE.Vector3(rand(-fort.cfg.W / 2 - 1, fort.cfg.W / 2 + 1), 0.4, rand(-9.5, -8.5)), new THREE.Vector3(rand(-1.5, 1.5), rand(1, 3), rand(0.5, 2.5)), 0xc8a070, 2.0, 1.7, 3.5, -0.3, 0.55);
+            shakeAmt = Math.max(shakeAmt, 0.35 * (1 - t));
+            if (fort.collapseT >= 2.3) finishCollapse();
+        }
+
+        // projectiles
+        let anyProj = false;
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            const p = projectiles[i]; p.age += dt; anyProj = true;
+            if (p.age >= FLIGHT) {
+                scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); projectiles.splice(i, 1);
+                if (fort && !S.collapsing) onImpact(p.target.x, p.target.y);
+                continue;
+            }
+            const t = p.age;
+            p.mesh.position.set(RELEASE.x + p.vel.x * t, RELEASE.y + p.vel.y * t - 0.5 * G * t * t, RELEASE.z + p.vel.z * t);
+            p.mesh.rotation.x += dt * 9; p.mesh.rotation.z += dt * 5;
+            projLight.position.copy(p.mesh.position);
+            emit('add', p.mesh.position, new THREE.Vector3(rand(-0.4, 0.4), rand(-0.2, 0.6), rand(-0.4, 0.4)), 0xff8a2a, 0.9, 0.4, -0.7, 0, 1);
+            if (Math.random() < 0.6) emit('norm', p.mesh.position, new THREE.Vector3(rand(-0.3, 0.3), rand(0.1, 0.5), rand(-0.3, 0.3)), 0x6b5a50, 0.6, 0.9, 1.4, 0, 0.4);
+        }
+        projLight.intensity = anyProj ? 2.4 : 0;
+
+        // defenders falling & idle
+        if (fort) {
+            fort.defenders.forEach(d => { if (!d.falling) { d.g.rotation.z = Math.sin(time * 1.6 + d.ph) * 0.04; d.g.position.y = fort.cfg.H + 0.3 + Math.abs(Math.sin(time * 2 + d.ph)) * 0.03; } });
+        }
+        for (let i = defendersFalling.length - 1; i >= 0; i--) {
+            const d = defendersFalling[i];
+            d.vel.y -= G * dt; d.g.position.addScaledVector(d.vel, dt); d.g.rotation.x += dt * 5; d.g.rotation.z += dt * 3;
+            if (d.g.position.y < -3) { d.g.visible = false; defendersFalling.splice(i, 1); }
+        }
+
+        // flags & torches
+        waveFlags(staticFlags, time); if (fort) waveFlags(fort.flags, time);
+        flames.forEach(f => { const fl = 0.85 + Math.sin(time * 14 + f.ph) * 0.12 + Math.random() * 0.08; f.s.scale.setScalar(f.base * fl); });
+        torchLights.forEach((l, i) => { l.intensity = 1.1 + Math.sin(time * 11 + i * 2) * 0.25 + Math.random() * 0.2; });
+
+        // motes
+        const mp = motes.geometry.attributes.position;
+        for (let i = 0; i < mp.count; i++) {
+            let x = mp.getX(i) + dt * 0.7; if (x > 22) x = -22;
+            mp.setX(i, x); mp.setY(i, mp.getY(i) + Math.sin(time + i) * dt * 0.1);
+        }
+        mp.needsUpdate = true;
+
+        // markers
+        const showAim = S.running && fort && !S.collapsing;
+        reticle.visible = showAim; weakMarker.visible = showAim && !fort.rising;
+        reticle.position.set(aim.x, aim.y, -8.93);
+        reticle.rotation.z = time * 0.8;
+        const rs = 1 + Math.sin(time * 6) * 0.06; reticle.scale.setScalar(rs);
+        weakMarker.position.set(weak.x, weak.y, -8.94);
+        weakMarker.userData.inner.rotation.z = -time * 1.5;
+        weakMarker.scale.setScalar(1 + Math.sin(time * 4) * 0.1);
+
+        // lintasan
+        const showTraj = canFire() || (S.ammo > 0 && manj.state === 'idle' && S.running && !S.paused && !S.collapsing);
+        trajPoints.visible = showTraj && fort && !fort.rising;
+        if (trajPoints.visible) {
+            const v = shotVel(aim.x, aim.y), pa = trajPoints.geometry.attributes.position;
+            for (let i = 0; i < 26; i++) {
+                const t = (i / 25) * FLIGHT;
+                pa.setXYZ(i, RELEASE.x + v.x * t, RELEASE.y + v.y * t - 0.5 * G * t * t, RELEASE.z + v.z * t);
+            }
+            pa.needsUpdate = true;
+        }
+
+        updateVolley(dt); updateArrows(dt); updateParticles(dt);
+
+        // kamera
+        shakeAmt *= Math.exp(-6 * dt);
+        const sx = (Math.random() - 0.5) * shakeAmt, sy = (Math.random() - 0.5) * shakeAmt;
+        camBlend += ((S.home ? 0 : 1) - camBlend) * Math.min(1, dt * 1.8);
+        const e = camBlend * camBlend * (3 - 2 * camBlend);
+        const ha = time * 0.15;
+        const hx = Math.sin(ha) * 12, hy = 3.8 + Math.sin(time * 0.25) * 0.6, hz = 6 + Math.cos(ha) * 4;
+        const gx = aim.x * 0.12 + sx, gy = 4.4 + Math.sin(time * 0.6) * 0.04 + sy, gz = 15.5;
+        camera.position.set(hx + (gx - hx) * e, hy + (gy - hy) * e, hz + (gz - hz) * e);
+        camera.lookAt(0 + (aim.x * 0.22) * e, 3.2 + (2.4 - 3.2) * e, -9 + (-6 + 9) * e);
+
+        renderer.render(scene, camera);
+    }
+
+    /* ===================== HUD / UI ===================== */
+    function updateHUD() {
+        $('hudScore').innerText = S.score;
+        $('hudLevel').innerText = `${Math.min(S.level, 3)}/3`;
+        $('hudLives').innerText = '❤️'.repeat(Math.max(0, S.lives)) || '💀';
+        const hp = Math.max(0, Math.round(S.hp));
+        $('fortressHpBar').style.width = `${hp}%`;
+        $('fortressHpText').innerText = `HP: ${hp}%`;
+        $('fortressStatusLabel').innerText = `Tahap ${S.level}: ${LEVELS[Math.min(S.level, 3)].name}`;
+        $('hudAmmo').innerText = S.ammo > 0 ? '🪨'.repeat(S.ammo) : '—';
+        $('hudCombo').innerText = S.combo > 1 ? `🔥 Kombo x${S.combo}` : '';
+    }
+    function updateLaunchUI() {
+        const quizBtn = $('quizTriggerBtn'), launchBtn = $('launchBtn'), instr = $('instructionText');
+        const base = 'w-full font-extrabold py-2.5 px-3 rounded-xl text-xs transition ';
+        if (S.ammo > 0) {
+            quizBtn.disabled = true; quizBtn.className = base + 'bg-gray-800 text-gray-500 cursor-not-allowed opacity-50';
+            launchBtn.disabled = false; launchBtn.className = base + 'bg-gradient-to-r from-emerald-500 to-teal-400 text-gray-950 shadow-lg';
+            launchBtn.innerText = `🚀 Lancar (${S.ammo})`;
+            instr.innerHTML = '🎯 Halakan <b class="text-red-400">reticle merah</b> ke <b class="text-amber-300">titik emas</b> untuk serangan kritikal, kemudian lancar!';
+        } else {
+            quizBtn.disabled = false; quizBtn.className = base + 'bg-gradient-to-r from-amber-600 to-yellow-500 text-gray-950 shadow-lg glow-pulse';
+            launchBtn.disabled = true; launchBtn.className = base + 'bg-gray-800 text-gray-500 cursor-not-allowed';
+            launchBtn.innerText = '🎯 Lancar (Terkunci)';
+            instr.innerHTML = '⚠️ <b>Amunisi habis:</b> jawab soalan sejarah untuk mendapat 3 batu lagi!';
+        }
+    }
+
+    /* ===================== QUIZ ===================== */
+    const quiz = { open: false, order: [], level: null, cur: null, opts: [], sel: null, locked: false };
+    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+    function openQuizModal() {
+        if (!S.running || S.ammo > 0 || S.collapsing) return;
+        const level = Math.min(3, Math.max(1, S.level));
+        const bank = quizBanks[level];
+        if (quiz.level !== level) { quiz.level = level; quiz.order = []; }
+        if (!quiz.order.length) quiz.order = shuffle([...bank.keys()]);
+        quiz.cur = bank[quiz.order.pop()];
+        const levelNames = { 1: 'Mudah', 2: 'Sederhana', 3: 'Susah' };
+        $('quizLevelBadge').innerText = `Tahap ${level} · ${levelNames[level]} · Soalan ${10 - quiz.order.length}/10`;
+        quiz.opts = shuffle(quiz.cur.options.map((t, i) => ({ t, ok: i === quiz.cur.correct, dead: false })));
+        quiz.sel = null; quiz.locked = false; quiz.open = true; S.paused = true; S.quizAsked++;
+        $('quizQuestionText').innerText = quiz.cur.q;
+        $('quizHistoricalNote').classList.add('hidden');
+        renderOptions();
+        const cb = $('quizConfirmBtn'); cb.disabled = true; cb.className = 'bg-gray-800 text-gray-500 px-5 py-2 rounded-xl text-xs font-bold cursor-not-allowed transition';
+        const m = $('quizModal'); m.classList.remove('hidden'); m.classList.add('flex');
+    }
+    function renderOptions() {
+        const c = $('quizOptionsContainer'); c.innerHTML = '';
+        quiz.opts.forEach((o, i) => {
+            const b = document.createElement('button');
+            let cls = 'w-full text-left p-3 rounded-xl border text-xs transition font-medium ';
+            if (o.dead) cls += 'border-red-500/60 bg-red-950/40 text-red-300 opacity-60 cursor-not-allowed';
+            else if (quiz.locked && o.ok) cls += 'border-emerald-400 bg-emerald-950/50 text-emerald-200';
+            else if (quiz.sel === i) cls += 'border-amber-400 bg-amber-950/50 text-gray-100';
+            else cls += 'border-gray-700 bg-gray-900/80 hover:bg-gray-800 text-gray-200';
+            b.className = cls; b.innerText = `${'ABC'[i]}. ${o.t}`; b.disabled = o.dead || quiz.locked;
+            b.onclick = () => pickOpt(i);
+            c.appendChild(b);
+        });
+    }
+    function pickOpt(i) {
+        if (!quiz.open || quiz.locked || !quiz.opts[i] || quiz.opts[i].dead) return;
+        quiz.sel = i; renderOptions();
+        const cb = $('quizConfirmBtn'); cb.disabled = false;
+        cb.className = 'bg-amber-600 hover:bg-amber-500 text-gray-950 px-5 py-2 rounded-xl text-xs font-extrabold transition shadow-lg';
+    }
+    function confirmQuizAnswer() {
+        if (!quiz.open || quiz.locked || quiz.sel === null) return;
+        const o = quiz.opts[quiz.sel], note = $('quizHistoricalNote');
+        note.innerText = quiz.cur.note; note.classList.remove('hidden');
+        if (o.ok) {
+            quiz.locked = true; renderOptions();
+            if (!quiz.opts.some(x => x.dead)) S.quizRight++; // betul percubaan pertama
+            S.score += 100; S.ammo = 3; sfx('ding');
+            popScreen(window.innerWidth / 2, window.innerHeight * 0.5, '+100 · 3 batu amunisi!', '#6ee7b7', 22);
+            manj.ball.visible = true;
+            updateHUD(); updateLaunchUI();
+            setTimeout(closeQuizModal, 1500);
+        } else {
+            o.dead = true; quiz.sel = null; S.lives--; sfx('wrong');
+            updateHUD(); renderOptions();
+            const cb = $('quizConfirmBtn'); cb.disabled = true; cb.className = 'bg-gray-800 text-gray-500 px-5 py-2 rounded-xl text-xs font-bold cursor-not-allowed transition';
+            if (S.lives <= 0) { closeQuizModal(); endGame(false, "Nyawa anda telah habis disebabkan kesilapan penilaian strategi."); }
+        }
+    }
+    function closeQuizModal() {
+        quiz.open = false; S.paused = false;
+        const m = $('quizModal'); m.classList.remove('flex'); m.classList.add('hidden');
+    }
+
+    /* ===================== GAME FLOW ===================== */
+    function startGame() {
+        if (!S.home) return;
+        A();
+        startMusic();
+        S.home = false;
+        document.body.classList.remove('home');
+        $('homeScreen').classList.add('hide');
+        resetGame();
+    }
+    function goHome() {
+        stopMusic();
+        S.home = true; S.running = false; S.paused = true; S.collapsing = false;
+        projectiles.forEach(p => scene.remove(p.mesh)); projectiles = []; defendersFalling = [];
+        resetVolley(); $('shieldOverlay').classList.remove('on');
+        $('endModal').classList.remove('flex'); $('endModal').classList.add('hidden');
+        buildFortress(1, false);
+        manj.state = 'idle'; manj.arm.rotation.x = REST_ANGLE; manj.ball.visible = true;
+        document.body.classList.add('home');
+        $('homeScreen').classList.remove('hide');
+    }
+    function showInfo(kind) {
+        const t = $('infoTitle'), b = $('infoBody');
+        if (kind === 'how') {
+            t.innerText = '📖 Cara Bermain';
+            b.innerHTML = '<p>📜 <b>Jawab soalan sejarah</b> dengan betul untuk mendapat <b>3 batu amunisi</b>.</p>'
+              + '<p>🎯 Halakan <b class="text-red-400">reticle merah</b> ke <b class="text-amber-300">titik emas (titik lemah)</b> untuk serangan kritikal dan kombo skor.</p>'
+              + '<p>🖱️ Tetikus/sentuh: gerak untuk sasaran, klik/lepas untuk lancar. Papan kekunci: anak panah + Enter.</p>'
+              + '<p>🛡️ <b>Hujan panah</b> akan datang. Angkat <b>Dabbabah</b> (SPACE / butang perisai / genggam tangan) untuk menahannya.</p>'
+              + '<p>✋ Mod kamera: gerak jari untuk sasaran, <b>cubit &amp; lepas</b> untuk lancar, <b>genggam</b> untuk perisai.</p>'
+              + '<p>🏰 Runtuhkan 3 lapisan pertahanan Taif sebelum masa tamat. Jawapan salah menolak satu nyawa.</p>';
+        } else {
+            t.innerText = '🏺 Latar Sejarah';
+            b.innerHTML = '<p>Pengepungan Taif berlaku pada <b>8 H (630 M)</b> selepas Pertempuran Hunain. Taif ialah kota berbenteng suku Thaqif.</p>'
+              + '<p>Pasukan Islam menggunakan <b>Manjaniq</b> (mesin lontar tarikan) dan <b>Dabbabah</b> (perisai pelindung) terhadap pertahanan benteng.</p>'
+              + '<p>Pengepungan akhirnya dihentikan tanpa menawan benteng. Pada <b>9 H</b>, perwakilan Thaqif datang ke Madinah dan menerima Islam.</p>'
+              + '<p class="text-[10px] text-gray-400">Butiran dipermudah untuk tujuan permainan. Rujuk bahan kursus SJHK1164 untuk huraian lengkap.</p>';
+        }
+        const m = $('infoPanel'); m.classList.remove('hidden'); m.classList.add('flex');
+    }
+    function closeInfo() { const m = $('infoPanel'); m.classList.remove('flex'); m.classList.add('hidden'); }
+
+    function resetGame() {
+        startMusic();
+        Object.assign(S, { score: 0, level: 1, lives: 3, timer: 120, hp: 100, ammo: 0, combo: 0, shots: 0, weakHits: 0,
+                           quizAsked: 0, quizRight: 0, running: true, paused: false, collapsing: false, shield: 0, shieldCD: 0 });
+        quiz.order = []; quiz.level = null; quiz.open = false;
+        projectiles.forEach(p => scene.remove(p.mesh)); projectiles = [];
+        defendersFalling = []; resetVolley();
+        $('shieldOverlay').classList.remove('on');
+        $('endModal').classList.remove('flex'); $('endModal').classList.add('hidden');
+        manj.state = 'idle'; manj.arm.rotation.x = REST_ANGLE; manj.ball.visible = false;
+        buildFortress(1, true);
+        banner(`TAHAP 1: ${LEVELS[1].name}`, 2600);
+        updateHUD(); updateLaunchUI();
+        setBadge(cameraActive ? 'Tunjukkan tangan anda pada kamera...' : 'Sedia: Jawab soalan untuk mendapatkan amunisi!');
+    }
+    function endGame(isWin, desc) {
+        stopMusic();
+        S.running = false; S.paused = true;
+        resetVolley(); $('shieldOverlay').classList.remove('on');
+        sfx(isWin ? 'win' : 'wrong');
+        $('endIcon').innerText = isWin ? '🏆' : '⚠️';
+        $('endTitle').innerText = isWin ? 'Kemenangan Strategik!' : 'Misi Tamat';
+        $('endDesc').innerText = desc;
+        $('endScore').innerText = S.score;
+        $('endLevel').innerText = `${Math.min(S.level, 3)}/3`;
+        const pct = S.quizAsked ? Math.round((S.quizRight / S.quizAsked) * 100) : null;
+        $('endQuiz').innerText = S.quizAsked ? `${S.quizRight}/${S.quizAsked} (${pct}%)` : '-';
+        $('endWeak').innerText = S.shots ? `${S.weakHits}/${S.shots} tembakan` : '-';
+        $('endRating').innerText = pct === null ? '-' : pct >= 90 ? 'Cemerlang' : pct >= 70 ? 'Baik' : pct >= 50 ? 'Sederhana' : 'Perlu Diperkukuh';
+        const m = $('endModal'); m.classList.remove('hidden'); m.classList.add('flex');
+    }
+
+    /* ===================== HAND GESTURE (MEDIAPIPE) ===================== */
+    function toggleCameraMode() {
+        cameraActive = !cameraActive;
+        const v = $('webcamVideo'), hc = $('handCanvas'), p = $('handPointer'), dot = $('statusDot'), lbl = $('controlModeLabel');
+        if (cameraActive) {
+            if (typeof Hands === 'undefined' || typeof Camera === 'undefined') {
+                cameraActive = false; setBadge('<span class="text-red-400">Pustaka kamera gagal dimuat. Semak sambungan internet.</span>'); return;
+            }
+            v.classList.remove('hidden'); hc.classList.remove('hidden'); p.classList.remove('hidden');
+            $('camBtnText').innerText = 'Tutup Kamera';
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse';
+            lbl.innerText = 'Mod: Gestur (Cubit = Lancar, Genggam = Perisai)';
+            setBadge('Tunjukkan tangan anda pada kamera...');
+            initMediaPipe();
+        } else {
+            v.classList.add('hidden'); hc.classList.add('hidden'); p.classList.add('hidden');
+            $('camBtnText').innerText = 'Kamera Gestur';
+            dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+            lbl.innerText = 'Mod: Sentuh / Tetikus';
+            if (cameraUtils) cameraUtils.stop();
+            setBadge('Mod tetikus/sentuh diaktifkan.');
+        }
+    }
+    function initMediaPipe() {
+        const video = $('webcamVideo');
+        if (!handsInstance) {
+            handsInstance = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+            handsInstance.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+            handsInstance.onResults(onHandResults);
+        }
+        cameraUtils = new Camera(video, {
+            onFrame: async () => { if (cameraActive && handsInstance) await handsInstance.send({ image: video }); },
+            width: 640, height: 480
+        });
+        const pr = cameraUtils.start();
+        if (pr && pr.catch) pr.catch(() => { if (cameraActive) toggleCameraMode(); setBadge('<span class="text-red-400">Kamera tidak dapat diakses. Benarkan kebenaran kamera.</span>'); });
+    }
+    function drawHand(lm) {
+        const hc = $('handCanvas'), g = hc.getContext('2d'), w = hc.width, h = hc.height;
+        g.clearRect(0, 0, w, h);
+        if (!lm) return;
+        g.strokeStyle = 'rgba(251,191,36,.9)'; g.lineWidth = 2;
+        if (typeof HAND_CONNECTIONS !== 'undefined') {
+            HAND_CONNECTIONS.forEach(([a, b]) => { g.beginPath(); g.moveTo(lm[a].x * w, lm[a].y * h); g.lineTo(lm[b].x * w, lm[b].y * h); g.stroke(); });
+        }
+        g.fillStyle = '#fff';
+        lm.forEach(p => { g.beginPath(); g.arc(p.x * w, p.y * h, 2.5, 0, 6.28); g.fill(); });
+    }
+    function onHandResults(r) {
+        const p = $('handPointer');
+        if (!cameraActive) return;
+        if (r.multiHandLandmarks && r.multiHandLandmarks.length) {
+            const lm = r.multiHandLandmarks[0]; drawHand(lm);
+            const th = lm[4], ix = lm[8];
+            const mx = (th.x + ix.x) / 2, my = (th.y + ix.y) / 2; // titik tengah supaya sasaran stabil semasa cubit
+            p.style.left = `${(1 - mx) * window.innerWidth}px`; p.style.top = `${my * window.innerHeight}px`;
+            if (S.running && !S.paused) setAimNDC((1 - mx) * 2 - 1, -(my * 2 - 1));
+
+            const size = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y) || 0.2;
+            const pinch = Math.hypot(th.x - ix.x, th.y - ix.y) / size;
+
+            if (!hand.pinching && pinch < 0.32) {
+                hand.pinching = true;
+                p.style.backgroundColor = 'rgba(239,68,68,.7)'; p.style.borderColor = '#ef4444';
+                setBadge('<span class="text-amber-400 font-bold">Ditahan ✊ Lepas cubitan untuk tembak!</span>');
+            } else if (hand.pinching && pinch > 0.55) {
+                hand.pinching = false;
+                p.style.backgroundColor = 'rgba(245,158,11,.4)'; p.style.borderColor = '#f59e0b';
+                if (canFire()) { setBadge('<span class="text-emerald-400 font-bold">Dilepaskan 🚀</span>'); fire(); }
+                else if (S.ammo <= 0 && S.running) setBadge('<span class="text-red-400 font-semibold">Terkunci! Jawab soalan dahulu.</span>');
+            }
+
+            const curled = [[8, 6], [12, 10], [16, 14], [20, 18]].every(([t, b]) => lm[t].y > lm[b].y);
+            if (curled && !hand.pinching) {
+                hand.fistFrames++;
+                if (hand.fistFrames === 3) { raiseShield(); setBadge('<span class="text-sky-300 font-bold">Genggam ✊ Dabbabah diangkat!</span>'); }
+            } else hand.fistFrames = 0;
+
+            if (!hand.pinching && !curled) setBadge('Gerak tangan untuk sasaran. Cubit &amp; lepas untuk tembak. Genggam = perisai.');
+        } else {
+            drawHand(null); hand.pinching = false; hand.fistFrames = 0;
+            setBadge('Tunjukkan tangan anda pada kamera...');
+        }
+    }
+
+    window.onload = function () {
+        initThreeJS();
+        updateHUD(); updateLaunchUI();
+    };
+    </script>
+</body>
+</html>
